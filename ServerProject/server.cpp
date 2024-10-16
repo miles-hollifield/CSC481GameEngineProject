@@ -5,8 +5,10 @@
 #include <chrono>
 #include <cstring>
 #include <mutex>
-#include "defs.h"
-#include "Timeline.h"
+#include "../Timeline.h"
+
+#define SCREEN_WIDTH 1920
+#define SCREEN_HEIGHT 1080
 
 // Define player position structure
 struct PlayerPosition {

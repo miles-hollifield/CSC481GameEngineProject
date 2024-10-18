@@ -32,31 +32,45 @@ void handleRequests(zmq::socket_t& routerSocket) {
         zmq::message_t request;
 
         // Receive client address and request in multipart message
-        routerSocket.recv(clientAddr, zmq::recv_flags::none);
-        routerSocket.recv(request, zmq::recv_flags::none);
+        if (routerSocket.recv(clientAddr, zmq::recv_flags::none) &&
+            routerSocket.recv(request, zmq::recv_flags::none)) {
 
-        // Extract player position from the request
-        PlayerPosition pos;
-        memcpy(&pos, request.data(), sizeof(pos));
+            if (request.size() != sizeof(PlayerPosition)) {
+                std::cerr << "Received invalid request size from client!" << std::endl;
+                continue;
+            }
 
-        // Convert the client address to a string
-        std::string clientId(static_cast<char*>(clientAddr.data()), clientAddr.size());
+            // Extract player position from the request
+            PlayerPosition pos;
+            memcpy(&pos, request.data(), sizeof(pos));
 
-        // Lock the mutex for thread safety
-        {
-            std::lock_guard<std::mutex> lock(playersMutex);
-            players[clientId] = pos;  // Update the player's position
+            // Convert the client address to a string
+            std::string clientId(static_cast<char*>(clientAddr.data()), clientAddr.size());
+
+            // Lock the mutex for thread safety
+            {
+                std::lock_guard<std::mutex> lock(playersMutex);
+                players[clientId] = pos;  // Update the player's position
+            }
+
+            // Send acknowledgment to the client
+            zmq::message_t replyAddr(clientAddr.data(), clientAddr.size());
+            zmq::message_t reply("OK", 2);  // Send OK as a response to the client
+
+            try {
+                routerSocket.send(replyAddr, zmq::send_flags::sndmore);
+                routerSocket.send(reply, zmq::send_flags::none);
+            }
+            catch (const zmq::error_t& ex) {
+                std::cerr << "Failed to send acknowledgment to client: " << ex.what() << std::endl;
+            }
         }
-
-        // Optionally, send a reply to acknowledge the request
-        zmq::message_t replyAddr(clientAddr.data(), clientAddr.size());
-        zmq::message_t reply("OK", 2);  // Send OK as a response to the client
-
-        // Send both the client address and acknowledgment message
-        routerSocket.send(replyAddr, zmq::send_flags::sndmore);
-        routerSocket.send(reply, zmq::send_flags::none);
+        else {
+            std::cerr << "Failed to receive data from client!" << std::endl;
+        }
     }
 }
+
 
 // Function to update platform positions based on velocity
 void updatePlatformPositions() {
@@ -82,7 +96,7 @@ void broadcastPositions(zmq::socket_t& pubSocket) {
     auto lastTime = std::chrono::steady_clock::now();  // Track time for delta calculation
 
     while (true) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));  // Adjust as needed
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));  // Reduced update interval to 50ms
 
         auto currentTime = std::chrono::steady_clock::now();
         std::chrono::duration<float> deltaTime = currentTime - lastTime;
@@ -113,10 +127,16 @@ void broadcastPositions(zmq::socket_t& pubSocket) {
             std::memcpy(buffer, &verticalPlatformPosition, sizeof(verticalPlatformPosition));
 
             // Send the update to all clients
-            pubSocket.send(update, zmq::send_flags::none);
+            try {
+                pubSocket.send(update, zmq::send_flags::none);
+            }
+            catch (const zmq::error_t& ex) {
+                std::cerr << "Failed to send update to clients: " << ex.what() << std::endl;
+            }
         }
     }
 }
+
 
 int main() {
     zmq::context_t context(2);  // Initialize ZeroMQ context

@@ -12,27 +12,45 @@ int playerId = -1;
 void receiveUpdates(Game& game, zmq::socket_t& subSocket) {
     while (true) {
         zmq::message_t update;
-        subSocket.recv(update, zmq::recv_flags::none);
+        if (subSocket.recv(update, zmq::recv_flags::none)) {
+            const char* buffer = static_cast<const char*>(update.data());
+            size_t messageSize = update.size();
 
-        const char* buffer = static_cast<const char*>(update.data());
-        size_t numPlayers = (update.size() - 2 * sizeof(PlayerPosition)) / sizeof(PlayerPosition);
+            // Ensure that we have at least one player position and the two platform positions
+            if (messageSize < 2 * sizeof(PlayerPosition)) {
+                std::cerr << "Received incomplete data from the server" << std::endl;
+                continue;
+            }
 
-        for (size_t i = 0; i < numPlayers; ++i) {
-            PlayerPosition pos;
-            memcpy(&pos, buffer, sizeof(PlayerPosition));
-            game.updatePlayerPosition(i, pos);  // Update player position in the game
-            buffer += sizeof(PlayerPosition);
+            // Calculate how many player positions are received
+            size_t numPlayers = (messageSize - 2 * sizeof(PlayerPosition)) / sizeof(PlayerPosition);
+            if (numPlayers * sizeof(PlayerPosition) + 2 * sizeof(PlayerPosition) != messageSize) {
+                std::cerr << "Mismatched message size! Dropping update." << std::endl;
+                continue;
+            }
+
+            for (size_t i = 0; i < numPlayers; ++i) {
+                PlayerPosition pos;
+                memcpy(&pos, buffer, sizeof(PlayerPosition));
+                game.updatePlayerPosition(i, pos);  // Update player position in the game
+                buffer += sizeof(PlayerPosition);
+            }
+
+            // Deserialize platform positions from the server
+            PlayerPosition platformPosition, verticalPlatformPosition;
+            memcpy(&platformPosition, buffer, sizeof(platformPosition));
+            buffer += sizeof(platformPosition);
+            memcpy(&verticalPlatformPosition, buffer, sizeof(verticalPlatformPosition));
+
+            game.updatePlatformPosition(platformPosition);
+            game.updateVerticalPlatformPosition(verticalPlatformPosition);
         }
-
-        // Deserialize platform positions from the server
-        PlayerPosition platformPosition, verticalPlatformPosition;
-        memcpy(&platformPosition, buffer, sizeof(platformPosition));
-        memcpy(&verticalPlatformPosition, buffer + sizeof(platformPosition), sizeof(verticalPlatformPosition));
-
-        game.updatePlatformPosition(platformPosition);
-        game.updateVerticalPlatformPosition(verticalPlatformPosition);
+        else {
+            std::cerr << "Failed to receive data from server" << std::endl;
+        }
     }
 }
+
 
 int main(int argc, char* args[]) {
     SDL_Window* window = nullptr;

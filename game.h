@@ -26,6 +26,7 @@ private:
     int platformID2;
     int platformID3;
 	int movingPlatformID;  // ID for a moving platform
+    int spawnPointID;
     int deathZoneID;  // ID for a death zone object
 
     // Initialize the game objects such as player, platforms, etc.
@@ -33,6 +34,10 @@ private:
 
     // Handle player input and SDL events
     void handleEvents();
+
+    void handleCollision(int platformID);
+
+    void handleDeathzone();
 
     // Update game object properties based on logic (e.g., movement, collisions)
     void updateGameObjects();

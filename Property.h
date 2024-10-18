@@ -2,6 +2,7 @@
 #define PROPERTY_H
 
 #include <string>
+#include "SDL2/SDL.h"
 
 class Property {
 public:

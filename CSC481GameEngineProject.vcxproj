@@ -26,6 +26,8 @@
     <ClInclude Include="input.h" />
     <ClInclude Include="main.h" />
     <ClInclude Include="PhysicsEntity.h" />
+    <ClInclude Include="Property.h" />
+    <ClInclude Include="PropertyManager.h" />
     <ClInclude Include="ThreadManager.h" />
     <ClInclude Include="Timeline.h" />
   </ItemGroup>

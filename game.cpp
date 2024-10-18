@@ -102,24 +102,35 @@ void Game::handleEvents(zmq::socket_t& dealerSocket) {
             quit = true;
         }
 
-        // Keyboard input to control player movement
-        const Uint8* keystates = SDL_GetKeyboardState(NULL);
-        PlayerPosition newPosition = { playerRect->x, playerRect->y };
+        // Handle key press events
+        if (e.type == SDL_KEYDOWN) {
+            switch (e.key.keysym.sym) {
+            case SDLK_LEFT:
+                playerVel->vx = -5;
+                break;
+            case SDLK_RIGHT:
+                playerVel->vx = 5;
+                break;
+            case SDLK_UP:
+                if (playerVel->vy == 0) {
+                    playerVel->vy = -15;
+                }
+                break;
+            }
+        }
 
-        if (keystates[SDL_SCANCODE_LEFT]) {
-            playerVel->vx = -5;
-            newPosition.x -= 5;
-        }
-        if (keystates[SDL_SCANCODE_RIGHT]) {
-            playerVel->vx = 5;
-            newPosition.x += 5;
-        }
-        if (keystates[SDL_SCANCODE_UP] && playerVel->vy == 0) {
-            playerVel->vy = -15;
-            newPosition.y -= 15;
+        // Handle key release events
+        if (e.type == SDL_KEYUP) {
+            switch (e.key.keysym.sym) {
+            case SDLK_LEFT:
+            case SDLK_RIGHT:
+                playerVel->vx = 0;
+                break;
+            }
         }
 
         // Send updated position to the server if it changed
+        PlayerPosition newPosition = { playerRect->x, playerRect->y };
         if (newPosition.x != playerRect->x || newPosition.y != playerRect->y) {
             playerRect->x = newPosition.x;
             playerRect->y = newPosition.y;

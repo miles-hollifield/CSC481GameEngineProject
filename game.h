@@ -29,6 +29,11 @@ private:
     int spawnPointID;
     int deathZoneID;  // ID for a death zone object
 
+	int rightBoundaryID;
+	int leftBoundaryID;
+    int leftScrollCount;
+	int rightScrollCount;
+
     // Initialize the game objects such as player, platforms, etc.
     void initGameObjects();
 
@@ -38,6 +43,8 @@ private:
     void handleCollision(int platformID);
 
     void handleDeathzone();
+
+	void handleBoundaries();
 
     // Update game object properties based on logic (e.g., movement, collisions)
     void updateGameObjects();

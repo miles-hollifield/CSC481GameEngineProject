@@ -38,7 +38,7 @@ void Game::initGameObjects() {
 	propertyManager.addProperty(platformID2, "Collision", std::make_shared<CollisionProperty>(true));
 
     platformID3 = propertyManager.createObject();
-    propertyManager.addProperty(platformID3, "Rect", std::make_shared<RectProperty>(450, 700, 200, 50));
+    propertyManager.addProperty(platformID3, "Rect", std::make_shared<RectProperty>(450, 700, 400, 50));
 	propertyManager.addProperty(platformID3, "Render", std::make_shared<RenderProperty>(0, 255, 255));
 	propertyManager.addProperty(platformID3, "Collision", std::make_shared<CollisionProperty>(true));
 
@@ -57,6 +57,16 @@ void Game::initGameObjects() {
     propertyManager.addProperty(deathZoneID, "Rect", std::make_shared<RectProperty>(0, SCREEN_HEIGHT - 50, SCREEN_WIDTH, 50));  // Just above the bottom of the screen
 	propertyManager.addProperty(deathZoneID, "Collision", std::make_shared<CollisionProperty>(true));  // Enable collision detection
 
+	rightBoundaryID = propertyManager.createObject();
+	propertyManager.addProperty(rightBoundaryID, "Rect", std::make_shared<RectProperty>(SCREEN_WIDTH - 50, 0, 50, SCREEN_HEIGHT));
+	propertyManager.addProperty(rightBoundaryID, "Collision", std::make_shared<CollisionProperty>(true));
+    rightScrollCount = 0;
+
+	leftBoundaryID = propertyManager.createObject();
+	propertyManager.addProperty(leftBoundaryID, "Rect", std::make_shared<RectProperty>(0, 0, 50, SCREEN_HEIGHT));
+	propertyManager.addProperty(leftBoundaryID, "Collision", std::make_shared<CollisionProperty>(true));
+    leftScrollCount = 0;
+
 }
 
 // Main game loop
@@ -69,6 +79,7 @@ void Game::run() {
 		handleCollision(platformID3);
         handleCollision(movingPlatformID);
 		handleDeathzone();
+		handleBoundaries();
         render();
         SDL_Delay(16);  // Cap frame rate
     }
@@ -143,12 +154,75 @@ void Game::handleDeathzone() {
 
     std::shared_ptr<RectProperty> spawnpointRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(spawnPointID, "Rect"));
 
+    std::shared_ptr<RectProperty> rightBoundaryRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(rightBoundaryID, "Rect"));
+    std::shared_ptr<RectProperty> leftBoundaryRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(leftBoundaryID, "Rect"));
+    std::shared_ptr<RectProperty> platformRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(platformID, "Rect"));
+    std::shared_ptr<RectProperty> platformRect2 = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(platformID2, "Rect"));
+    std::shared_ptr<RectProperty> platformRect3 = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(platformID3, "Rect"));
+    std::shared_ptr<RectProperty> movingPlatformRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(movingPlatformID, "Rect"));
+
     if (SDL_HasIntersection(&playRect, &deathRect)) {
         playerRect->x = spawnpointRect->x;
         playerRect->y = spawnpointRect->y;
         playerVel->vy = 0.0f;
 		playerVel->vx = 0.0f;
+        
+        for (int i = 0; i < rightScrollCount; i++) {
+            platformRect->x = platformRect->x + playerRect->w;
+            platformRect2->x = platformRect2->x + playerRect->w;
+            platformRect3->x = platformRect3->x + playerRect->w;
+            movingPlatformRect->x = movingPlatformRect->x + playerRect->w;
+        }
+
+        for (int i = 0; i < leftScrollCount; i++) {
+            platformRect->x = platformRect->x - playerRect->w;
+            platformRect2->x = platformRect2->x - playerRect->w;
+            platformRect3->x = platformRect3->x - playerRect->w;
+            movingPlatformRect->x = movingPlatformRect->x - playerRect->w;
+        }
+
+		rightScrollCount = 0;
+		leftScrollCount = 0;
     }
+}
+
+void Game::handleBoundaries() {
+    auto& propertyManager = PropertyManager::getInstance();
+	std::shared_ptr<RectProperty> playerRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(playerID, "Rect"));
+	std::shared_ptr<RectProperty> rightBoundaryRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(rightBoundaryID, "Rect"));
+	std::shared_ptr<RectProperty> leftBoundaryRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(leftBoundaryID, "Rect"));
+	std::shared_ptr<RectProperty> platformRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(platformID, "Rect"));
+	std::shared_ptr<RectProperty> platformRect2 = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(platformID2, "Rect"));
+	std::shared_ptr<RectProperty> platformRect3 = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(platformID3, "Rect"));
+	std::shared_ptr<RectProperty> movingPlatformRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(movingPlatformID, "Rect"));
+	//std::shared_ptr<RectProperty> spawnpointRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(spawnPointID, "Rect"));
+
+    SDL_Rect playRect = { playerRect->x, playerRect->y, playerRect->w, playerRect->h };
+	SDL_Rect rightRect = { rightBoundaryRect->x, rightBoundaryRect->y, rightBoundaryRect->w, rightBoundaryRect->h };
+	SDL_Rect leftRect = { leftBoundaryRect->x, leftBoundaryRect->y, leftBoundaryRect->w, leftBoundaryRect->h };
+
+	if (SDL_HasIntersection(&playRect, &rightRect)) {
+		playerRect->x = rightBoundaryRect->x - playerRect->w;
+		platformRect->x = platformRect->x - playerRect->w;
+		platformRect2->x = platformRect2->x - playerRect->w;
+		platformRect3->x = platformRect3->x - playerRect->w;
+		movingPlatformRect->x = movingPlatformRect->x - playerRect->w;
+		//spawnpointRect->x = spawnpointRect->x - playerRect->w;
+        rightScrollCount++;
+
+	}
+
+	if (SDL_HasIntersection(&playRect, &leftRect)) {
+		playerRect->x = leftBoundaryRect->x + playerRect->w;
+        platformRect->x = platformRect->x + playerRect->w;
+        platformRect2->x = platformRect2->x + playerRect->w;
+        platformRect3->x = platformRect3->x + playerRect->w;
+        movingPlatformRect->x = movingPlatformRect->x + playerRect->w;
+		//spawnpointRect->x = spawnpointRect->x + playerRect->w;
+        leftScrollCount++;
+
+	}
+
 }
 
 // Update game object properties

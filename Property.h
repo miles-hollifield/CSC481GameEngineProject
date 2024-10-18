@@ -82,4 +82,30 @@ public:
 
 };
 
+class InputProperty : public Property {
+public:
+
+	InputProperty(bool hasInput) : hasInput(hasInput) {}
+
+	std::string getType() const override {
+		return "Input";
+	}
+
+	bool hasInput;
+
+};
+
+class ScrollingProperty : public Property {
+public:
+
+	ScrollingProperty(bool scrolls) : scrolls(scrolls) {}
+
+	std::string getType() const override {
+		return "Scrolling";
+	}
+
+	bool scrolls;
+
+};
+
 #endif // PROPERTY_H

@@ -152,14 +152,38 @@ void Game::handleCollision(int platformID) {
     }
 }
 
+//void Game::checkCollisions() {
+//    auto& propertyManager = PropertyManager::getInstance();
+//    const auto& collisionObjects = propertyManager.getCollisionObjects();
+//
+//    // Loop through all objects with collision
+//    for (int objectID : collisionObjects) {
+//        if (objectID != playerID) {  // Don't check the player against itself
+//            // Handle each collision based on the type of object
+//            if (objectID == deathZoneID) {
+//                handleDeathzone();
+//            }
+//            else if (objectID == rightBoundaryID || objectID == leftBoundaryID) {
+//                handleBoundaries();
+//            }
+//            else {
+//                handleCollision(objectID);
+//            }
+//        }
+//    }
+//}
+
 void Game::checkCollisions() {
     auto& propertyManager = PropertyManager::getInstance();
-    const auto& collisionObjects = propertyManager.getCollisionObjects();
+    const auto& allProperties = propertyManager.getAllProperties();
 
-    // Loop through all objects with collision
-    for (int objectID : collisionObjects) {
-        if (objectID != playerID) {  // Don't check the player against itself
-            // Handle each collision based on the type of object
+    // Loop through all objects and check if they have a "Collision" property
+    for (const auto& objectPair : allProperties) {
+        int objectID = objectPair.first;
+
+        // Check if the object has a "Collision" property and is not the player
+        if (objectPair.second.count("Collision") && objectID != playerID) {
+            // Handle special cases for death zone and boundaries
             if (objectID == deathZoneID) {
                 handleDeathzone();
             }
@@ -167,11 +191,13 @@ void Game::checkCollisions() {
                 handleBoundaries();
             }
             else {
-                handleCollision(objectID);
+                handleCollision(objectID);  // Handle collision for any other object with Collision property
             }
         }
     }
 }
+
+
 
 void Game::handleDeathzone() {
     auto& propertyManager = PropertyManager::getInstance();

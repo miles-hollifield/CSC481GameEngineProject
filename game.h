@@ -26,6 +26,7 @@ private:
     int platformID2;
     int platformID3;
 	int movingPlatformID;  // ID for a moving platform
+    int movingPlatformID2;
     int spawnPointID;
     int deathZoneID;  // ID for a death zone object
 
@@ -45,6 +46,8 @@ private:
     void handleDeathzone();
 
 	void handleBoundaries();
+
+	void checkCollisions();
 
     // Update game object properties based on logic (e.g., movement, collisions)
     void updateGameObjects();

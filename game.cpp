@@ -3,6 +3,8 @@
 #include "SDL2/SDL.h"
 #include <iostream>
 #include <memory>
+#include <zmq.hpp>
+#include "defs.h"
 
 // Constructor
 Game::Game(SDL_Renderer* renderer)
@@ -78,24 +80,18 @@ void Game::initGameObjects() {
 }
 
 // Main game loop
-void Game::run() {
+void Game::run(zmq::socket_t& dealerSocket) {
     while (!quit) {
-        handleEvents();
+        handleEvents(dealerSocket);  // Handle player input and send data to the server
         updateGameObjects();
-		/*handleCollision(platformID);
-		handleCollision(platformID2);
-		handleCollision(platformID3);
-        handleCollision(movingPlatformID);
-		handleDeathzone();
-		handleBoundaries();*/
         checkCollisions();
         render();
         SDL_Delay(16);  // Cap frame rate
     }
 }
 
-// Handle player input and SDL events
-void Game::handleEvents() {
+// Handle player input, SDL events, and send updates to the server
+void Game::handleEvents(zmq::socket_t& dealerSocket) {
     SDL_Event e;
     auto& propertyManager = PropertyManager::getInstance();
     std::shared_ptr<RectProperty> playerRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(playerID, "Rect"));
@@ -106,22 +102,74 @@ void Game::handleEvents() {
             quit = true;
         }
 
-        // Keyboard input to control player movement
-        const Uint8* keystates = SDL_GetKeyboardState(NULL);
-        if (keystates[SDL_SCANCODE_LEFT]) {
-            playerVel->vx = -5;
-        }
-        else if (keystates[SDL_SCANCODE_RIGHT]) {
-            playerVel->vx = 5;
-        }
-        else {
-            playerVel->vx = 0;
+        // Handle key press events
+        if (e.type == SDL_KEYDOWN) {
+            switch (e.key.keysym.sym) {
+            case SDLK_LEFT:
+                playerVel->vx = -5;
+                break;
+            case SDLK_RIGHT:
+                playerVel->vx = 5;
+                break;
+            case SDLK_UP:
+                if (playerVel->vy == 0) {
+                    playerVel->vy = -15;
+                }
+                break;
+            }
         }
 
-        if (keystates[SDL_SCANCODE_UP] && playerVel->vy == 0) {  // Allow jumping only when on the ground
-            playerVel->vy = -15;  // Jump velocity
+        // Handle key release events
+        if (e.type == SDL_KEYUP) {
+            switch (e.key.keysym.sym) {
+            case SDLK_LEFT:
+            case SDLK_RIGHT:
+                playerVel->vx = 0;
+                break;
+            }
+        }
+
+        // Send updated position to the server if it changed
+        PlayerPosition newPosition = { playerRect->x, playerRect->y };
+        if (newPosition.x != playerRect->x || newPosition.y != playerRect->y) {
+            playerRect->x = newPosition.x;
+            playerRect->y = newPosition.y;
+
+            zmq::message_t request(sizeof(PlayerPosition));
+            memcpy(request.data(), &newPosition, sizeof(PlayerPosition));
+
+            try {
+                // Send position update (no need to wait for a reply in Dealer)
+                dealerSocket.send(request, zmq::send_flags::none);
+            }
+            catch (const zmq::error_t& ex) {
+                std::cerr << "Failed to send position: " << ex.what() << std::endl;
+            }
         }
     }
+}
+
+// Update other players' positions based on server data
+void Game::updatePlayerPosition(int playerID, const PlayerPosition& pos) {
+    auto& propertyManager = PropertyManager::getInstance();
+    std::shared_ptr<RectProperty> playerRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(playerID, "Rect"));
+    playerRect->x = pos.x;
+    playerRect->y = pos.y;
+}
+
+// Update platform positions based on server data
+void Game::updatePlatformPosition(const PlayerPosition& pos) {
+    auto& propertyManager = PropertyManager::getInstance();
+    std::shared_ptr<RectProperty> platformRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(movingPlatformID, "Rect"));
+    platformRect->x = pos.x;
+    platformRect->y = pos.y;
+}
+
+void Game::updateVerticalPlatformPosition(const PlayerPosition& pos) {
+    auto& propertyManager = PropertyManager::getInstance();
+    std::shared_ptr<RectProperty> platformRect2 = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(movingPlatformID2, "Rect"));
+    platformRect2->x = pos.x;
+    platformRect2->y = pos.y;
 }
 
 void Game::handleCollision(int platformID) {
@@ -152,27 +200,6 @@ void Game::handleCollision(int platformID) {
     }
 }
 
-//void Game::checkCollisions() {
-//    auto& propertyManager = PropertyManager::getInstance();
-//    const auto& collisionObjects = propertyManager.getCollisionObjects();
-//
-//    // Loop through all objects with collision
-//    for (int objectID : collisionObjects) {
-//        if (objectID != playerID) {  // Don't check the player against itself
-//            // Handle each collision based on the type of object
-//            if (objectID == deathZoneID) {
-//                handleDeathzone();
-//            }
-//            else if (objectID == rightBoundaryID || objectID == leftBoundaryID) {
-//                handleBoundaries();
-//            }
-//            else {
-//                handleCollision(objectID);
-//            }
-//        }
-//    }
-//}
-
 void Game::checkCollisions() {
     auto& propertyManager = PropertyManager::getInstance();
     const auto& allProperties = propertyManager.getAllProperties();
@@ -196,8 +223,6 @@ void Game::checkCollisions() {
         }
     }
 }
-
-
 
 void Game::handleDeathzone() {
     auto& propertyManager = PropertyManager::getInstance();

@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <memory>
 #include "defs.h"
+#include <zmq.hpp>
 
 // Class representing the Game2 (new game with property-based model)
 class Game {
@@ -14,8 +15,17 @@ public:
     Game(SDL_Renderer* renderer);  // Constructor with SDL renderer
     ~Game();  // Destructor
 
-    // Method to run the main game loop
-    void run();
+    // Method to run the main game loop with ZeroMQ request socket
+    void run(zmq::socket_t& reqSocket);
+
+    // Update player position (used when receiving player positions from server)
+    void updatePlayerPosition(int playerID, const PlayerPosition& pos);
+
+    // Update platform position (used when receiving platform positions from server)
+    void updatePlatformPosition(const PlayerPosition& pos);
+
+    // Update vertical platform position (used when receiving vertical platform positions from server)
+    void updateVerticalPlatformPosition(const PlayerPosition& pos);
 
 private:
     SDL_Renderer* renderer;  // SDL renderer for rendering game objects
@@ -25,29 +35,33 @@ private:
     int platformID;  // ID for a static platform
     int platformID2;
     int platformID3;
-	int movingPlatformID;  // ID for a moving platform
-    int movingPlatformID2;
+    int movingPlatformID;  // ID for a moving platform
+    int movingPlatformID2;  // ID for the second moving platform (vertical)
     int spawnPointID;
     int deathZoneID;  // ID for a death zone object
 
-	int rightBoundaryID;
-	int leftBoundaryID;
+    int rightBoundaryID;
+    int leftBoundaryID;
     int leftScrollCount;
-	int rightScrollCount;
+    int rightScrollCount;
 
     // Initialize the game objects such as player, platforms, etc.
     void initGameObjects();
 
-    // Handle player input and SDL events
-    void handleEvents();
+    // Handle player input, SDL events, and send updates to the server via ZeroMQ
+    void handleEvents(zmq::socket_t& reqSocket);
 
+    // Handle collisions with platforms or other objects
     void handleCollision(int platformID);
 
+    // Handle death zone collision
     void handleDeathzone();
 
-	void handleBoundaries();
+    // Handle boundary collisions
+    void handleBoundaries();
 
-	void checkCollisions();
+    // Check for collisions and handle accordingly
+    void checkCollisions();
 
     // Update game object properties based on logic (e.g., movement, collisions)
     void updateGameObjects();

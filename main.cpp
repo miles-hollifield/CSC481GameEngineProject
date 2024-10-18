@@ -1,9 +1,56 @@
 #include "main.h"
 #include "game.h"  // Include Game2 header for the property-based model
 #include <iostream>
+#include <zmq.hpp>
+#include <thread>
+#include "defs.h"
 
 // Store global player ID (unique for each client)
 int playerId = -1;
+
+// Function to receive updates from the server
+void receiveUpdates(Game& game, zmq::socket_t& subSocket) {
+    while (true) {
+        zmq::message_t update;
+        if (subSocket.recv(update, zmq::recv_flags::none)) {
+            const char* buffer = static_cast<const char*>(update.data());
+            size_t messageSize = update.size();
+
+            // Ensure that we have at least one player position and the two platform positions
+            if (messageSize < 2 * sizeof(PlayerPosition)) {
+                std::cerr << "Received incomplete data from the server" << std::endl;
+                continue;
+            }
+
+            // Calculate how many player positions are received
+            size_t numPlayers = (messageSize - 2 * sizeof(PlayerPosition)) / sizeof(PlayerPosition);
+            if (numPlayers * sizeof(PlayerPosition) + 2 * sizeof(PlayerPosition) != messageSize) {
+                std::cerr << "Mismatched message size! Dropping update." << std::endl;
+                continue;
+            }
+
+            for (size_t i = 0; i < numPlayers; ++i) {
+                PlayerPosition pos;
+                memcpy(&pos, buffer, sizeof(PlayerPosition));
+                game.updatePlayerPosition(i, pos);  // Update player position in the game
+                buffer += sizeof(PlayerPosition);
+            }
+
+            // Deserialize platform positions from the server
+            PlayerPosition platformPosition, verticalPlatformPosition;
+            memcpy(&platformPosition, buffer, sizeof(platformPosition));
+            buffer += sizeof(platformPosition);
+            memcpy(&verticalPlatformPosition, buffer, sizeof(verticalPlatformPosition));
+
+            game.updatePlatformPosition(platformPosition);
+            game.updateVerticalPlatformPosition(verticalPlatformPosition);
+        }
+        else {
+            std::cerr << "Failed to receive data from server" << std::endl;
+        }
+    }
+}
+
 
 int main(int argc, char* args[]) {
     SDL_Window* window = nullptr;
@@ -18,14 +65,29 @@ int main(int argc, char* args[]) {
         return -1;
     }
 
-    // Create an instance of the Game2 class, passing the SDL renderer
-    Game game(renderer);  // No need to pass additional arguments (only renderer is passed)
+    // ZeroMQ context and sockets setup for networking
+    zmq::context_t context(1);
+    zmq::socket_t reqSocket(context, zmq::socket_type::req);  // Request socket for player data
+    zmq::socket_t subSocket(context, zmq::socket_type::sub);  // Subscription socket for updates
+
+    reqSocket.connect("tcp://localhost:5555");
+    subSocket.connect("tcp://localhost:5556");
+    subSocket.set(zmq::sockopt::subscribe, "");
+
+    // Create an instance of the Game class, passing the SDL renderer
+    Game game(renderer);
+
+    // Thread for receiving updates from the server
+    std::thread updateThread(receiveUpdates, std::ref(game), std::ref(subSocket));
 
     // Start the game loop
-    game.run();
+    game.run(reqSocket);
 
     // Clean up SDL resources after the game loop ends
-    close(window, renderer);  // Clean up SDL resources by destroying the window and renderer
+    close(window, renderer);
 
-    return 0;  // Exit the program successfully
+    // Wait for the update thread to finish
+    updateThread.join();
+
+    return 0;
 }

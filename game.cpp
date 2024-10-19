@@ -30,17 +30,17 @@ void Game::initGameObjects() {
     // Create static platform objects
     platformID = propertyManager.createObject();
     propertyManager.addProperty(platformID, "Rect", std::make_shared<RectProperty>(50, 500, 200, 50));
-    propertyManager.addProperty(platformID, "Render", std::make_shared<RenderProperty>(0, 255, 0));
+    propertyManager.addProperty(platformID, "Render", std::make_shared<RenderProperty>(128, 0, 128));
     propertyManager.addProperty(platformID, "Collision", std::make_shared<CollisionProperty>(true));
 
     platformID2 = propertyManager.createObject();
     propertyManager.addProperty(platformID2, "Rect", std::make_shared<RectProperty>(250, 600, 200, 50));
-    propertyManager.addProperty(platformID2, "Render", std::make_shared<RenderProperty>(0, 0, 255));
+    propertyManager.addProperty(platformID2, "Render", std::make_shared<RenderProperty>(255, 255, 0));
     propertyManager.addProperty(platformID2, "Collision", std::make_shared<CollisionProperty>(true));
 
     platformID3 = propertyManager.createObject();
     propertyManager.addProperty(platformID3, "Rect", std::make_shared<RectProperty>(450, 700, 400, 50));
-    propertyManager.addProperty(platformID3, "Render", std::make_shared<RenderProperty>(0, 255, 255));
+    propertyManager.addProperty(platformID3, "Render", std::make_shared<RenderProperty>(50, 50, 50));
     propertyManager.addProperty(platformID3, "Collision", std::make_shared<CollisionProperty>(true));
 
     // Create moving platform
@@ -125,12 +125,12 @@ void Game::handleEvents() {
             quit = true;
         }
 
-        // Handle input for controllable player entity
+        // Handle input for local player only
         auto& propertyManager = PropertyManager::getInstance();
         std::shared_ptr<RectProperty> playerRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(playerID, "Rect"));
         std::shared_ptr<VelocityProperty> playerVel = std::static_pointer_cast<VelocityProperty>(propertyManager.getProperty(playerID, "Velocity"));
 
-        // Keyboard input to control player movement
+        // Handle keyboard input
         const Uint8* keystates = SDL_GetKeyboardState(NULL);
         if (keystates[SDL_SCANCODE_LEFT]) {
             playerVel->vx = -5;
@@ -142,14 +142,15 @@ void Game::handleEvents() {
             playerVel->vx = 0;
         }
 
-        if (keystates[SDL_SCANCODE_UP] && playerVel->vy == 0) {  // Allow jumping only when on the ground
-            playerVel->vy = -15;  // Jump velocity
+        if (keystates[SDL_SCANCODE_UP] && playerVel->vy == 0) {
+            playerVel->vy = -15;  // Jump
         }
 
-        // Send movement updates to the server
+        // Send only local player updates
         sendMovementUpdate();
     }
 }
+
 
 // Send the current player's position to the server
 void Game::sendMovementUpdate() {
@@ -199,10 +200,11 @@ void Game::receivePlayerPositions() {
             memcpy(&pos, buffer, sizeof(pos));
             buffer += sizeof(pos);
 
-            allPlayers[id] = pos;
+            allPlayers[id] = pos;  // Update positions for all players
         }
     }
 }
+
 
 void Game::handleCollision(int platformID) {
     auto& propertyManager = PropertyManager::getInstance();

@@ -14,7 +14,7 @@ struct PlayerPosition {
     int x, y;
 };
 
-// Global variables for players, platform position, mutex, and client tracking
+// Global variables for players, mutex, and client tracking
 std::unordered_map<int, PlayerPosition> players;  // Map of players and their positions
 std::mutex playersMutex;  // Mutex to ensure thread-safe access to player data
 int nextClientId = 0;  // Unique ID for each new player
@@ -25,6 +25,7 @@ void handleRequests(zmq::socket_t& repSocket) {
         // Check for new client connections
         zmq::message_t request;
         zmq::recv_result_t received = repSocket.recv(request, zmq::recv_flags::dontwait);
+
         if (received) {
             // Extract player position from the request
             int clientId;
@@ -53,12 +54,14 @@ void handleRequests(zmq::socket_t& repSocket) {
                 repSocket.send(reply, zmq::send_flags::none);
             }
         }
-        // Sleep for a short period to simulate update intervals
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        else {
+            // Sleep for a short period to simulate update intervals
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
     }
 }
 
-// Broadcast only player positions to clients (no platforms involved)
+// Broadcast player positions to clients (no platforms involved)
 void broadcastPositions(zmq::socket_t& pubSocket) {
     while (true) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));  // Adjust as needed
@@ -87,6 +90,18 @@ void broadcastPositions(zmq::socket_t& pubSocket) {
     }
 }
 
+// Function to handle player disconnections
+void handleDisconnections() {
+    while (true) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+        std::lock_guard<std::mutex> lock(playersMutex);  // Lock the mutex for thread safety
+        // Simulated disconnect handling: you would typically need to check if clients stop sending data
+        // For simplicity, we'll skip actual disconnection logic
+        // In real-world usage, you'll need to handle timeouts or connection loss to detect disconnections
+    }
+}
+
 int main() {
     zmq::context_t context(2);  // Initialize ZeroMQ context
     zmq::socket_t repSocket(context, zmq::socket_type::rep);  // For client connection
@@ -99,9 +114,13 @@ int main() {
     std::thread requestThread(handleRequests, std::ref(repSocket));
     std::thread broadcastThread(broadcastPositions, std::ref(pubSocket));
 
+    // Add a thread to handle player disconnections
+    std::thread disconnectionThread(handleDisconnections);
+
     // Wait for threads to finish (in practice, they won't terminate)
     requestThread.join();
     broadcastThread.join();
+    disconnectionThread.join();
 
     return 0;
 }

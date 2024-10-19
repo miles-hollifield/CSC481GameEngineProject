@@ -8,7 +8,7 @@
 
 #define SCREEN_WIDTH 1920
 #define SCREEN_HEIGHT 1080
-#define HEARTBEAT_INTERVAL_MS 2000  // Time after which the server assumes a client has disconnected
+#define HEARTBEAT_INTERVAL_MS 10000  // Time after which the server assumes a client has disconnected
 
 // Define player position structure
 struct PlayerPosition {

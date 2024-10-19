@@ -55,6 +55,7 @@ private:
     void handleEvents();  // Handles SDL events and player input
     void sendMovementUpdate();  // Sends the current player's position to the server
     void receivePlayerPositions();  // Receives all players' positions from the server
+    void sendDisconnectMessage();
 
     // SDL variables
     SDL_Renderer* renderer;  // The SDL renderer used to draw on the screen

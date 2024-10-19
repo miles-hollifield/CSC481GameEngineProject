@@ -7,7 +7,7 @@
 
 // Constructor for the Game class
 Game::Game(SDL_Renderer* renderer, zmq::socket_t& reqSocket, zmq::socket_t& subSocket)
-    : renderer(renderer), reqSocket(reqSocket), subSocket(subSocket), quit(false), playerId(-1)
+    : renderer(renderer), reqSocket(reqSocket), subSocket(subSocket), quit(false), clientId(-1)
 {
     initGameObjects();  // Initialize property-based objects (players, platforms, etc.)
 }
@@ -153,7 +153,7 @@ void Game::handleEvents() {
 
 // Send the current player's position to the server
 void Game::sendMovementUpdate() {
-    zmq::message_t request(sizeof(playerId) + sizeof(PlayerPosition));
+    zmq::message_t request(sizeof(clientId) + sizeof(PlayerPosition));
 
     // Package the player ID and position
     PlayerPosition pos;
@@ -163,8 +163,8 @@ void Game::sendMovementUpdate() {
     pos.x = playerRect->x;
     pos.y = playerRect->y;
 
-    memcpy(request.data(), &playerId, sizeof(playerId));
-    memcpy(static_cast<char*>(request.data()) + sizeof(playerId), &pos, sizeof(pos));
+    memcpy(request.data(), &clientId, sizeof(clientId));
+    memcpy(static_cast<char*>(request.data()) + sizeof(clientId), &pos, sizeof(pos));
 
     // Send the data to the server
     reqSocket.send(request, zmq::send_flags::none);
@@ -174,9 +174,9 @@ void Game::sendMovementUpdate() {
     reqSocket.recv(reply);
 
     // If the player ID is not assigned, get the assigned ID from the server
-    if (playerId == -1) {
-        memcpy(&playerId, reply.data(), sizeof(playerId));
-        std::cout << "Received assigned playerId: " << playerId << std::endl;
+    if (clientId == -1) {
+        memcpy(&clientId, reply.data(), sizeof(clientId));
+        std::cout << "Received assigned playerId: " << clientId << std::endl;
     }
 }
 
@@ -423,7 +423,7 @@ void Game::render() {
     // Render other players
     for (const auto& player : allPlayers) {
         int id = player.first;
-        if (id != playerID) {
+        if (id != clientId) {
             PlayerPosition pos = player.second;
 
             // Create SDL_Rect from position

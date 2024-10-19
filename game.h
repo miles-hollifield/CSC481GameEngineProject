@@ -64,7 +64,7 @@ private:
     zmq::socket_t& subSocket;  // ZeroMQ subscriber socket (SUB) to receive updates from the server
 
     // Game objects and properties
-    int playerId;  // The ID assigned to this player's character by the server
+    int clientId;  // The ID assigned to this player's character by the server
     int playerID;  // Player object ID in the PropertyManager
     int platformID, platformID2, platformID3;  // IDs for static platforms
     int movingPlatformID, movingPlatformID2;  // IDs for moving platforms

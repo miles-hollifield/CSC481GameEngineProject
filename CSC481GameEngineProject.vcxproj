@@ -23,9 +23,7 @@
     <ClInclude Include="defs.h" />
     <ClInclude Include="game.h" />
     <ClInclude Include="init.h" />
-    <ClInclude Include="input.h" />
     <ClInclude Include="main.h" />
-    <ClInclude Include="PhysicsEntity.h" />
     <ClInclude Include="Property.h" />
     <ClInclude Include="PropertyManager.h" />
     <ClInclude Include="ThreadManager.h" />
@@ -34,9 +32,7 @@
   <ItemGroup>
     <ClCompile Include="game.cpp" />
     <ClCompile Include="init.cpp" />
-    <ClCompile Include="input.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="PhysicsEntity.cpp" />
     <ClCompile Include="ThreadManager.cpp" />
     <ClCompile Include="Timeline.cpp" />
   </ItemGroup>

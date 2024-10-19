@@ -1,77 +1,97 @@
-#ifndef GAME2_H
-#define GAME2_H
+#pragma once
 
-#include "SDL2/SDL.h"
-#include "PropertyManager.h"
-#include <unordered_map>
-#include <memory>
-#include "defs.h"
+#include <SDL2/SDL.h>
 #include <zmq.hpp>
+#include <unordered_map>
+#include <chrono>
+#include <mutex>
+#include "Timeline.h"  // For timeline functionality (pausing/unpausing, time scaling)
+#include "PropertyManager.h"  // For property-based game objects
+#include "ThreadManager.h"  // For multithreading platform updates
 
-// Class representing the Game2 (new game with property-based model)
+// Define player position structure
+struct PlayerPosition {
+    int x, y;
+};
+
+#define SCREEN_WIDTH 1920
+#define SCREEN_HEIGHT 1080
+
+// Forward declarations
+class RectProperty;
+class VelocityProperty;
+
+// The Game class represents the main game logic and state
 class Game {
 public:
     // Constructor and Destructor
-    Game(SDL_Renderer* renderer);  // Constructor with SDL renderer
-    ~Game();  // Destructor
+    Game(SDL_Renderer* renderer, zmq::socket_t& reqSocket, zmq::socket_t& subSocket);
+    ~Game();
 
-    // Method to run the main game loop with ZeroMQ request socket
-    void run(zmq::socket_t& reqSocket);
-
-    // Update player position (used when receiving player positions from server)
-    void updatePlayerPosition(int playerID, const PlayerPosition& pos);
-
-    // Update platform position (used when receiving platform positions from server)
-    void updatePlatformPosition(const PlayerPosition& pos);
-
-    // Update vertical platform position (used when receiving vertical platform positions from server)
-    void updateVerticalPlatformPosition(const PlayerPosition& pos);
+    // Main game loop
+    void run();
 
 private:
-    SDL_Renderer* renderer;  // SDL renderer for rendering game objects
-    bool quit;  // Flag to control the game loop
+    // Initialization and setup
+    void initGameObjects();  // Initializes the game objects (players, platforms, etc.)
 
-    int playerID;  // ID for the player object
-    int platformID;  // ID for a static platform
-    int platformID2;
-    int platformID3;
-    int movingPlatformID;  // ID for a moving platform
-    int movingPlatformID2;  // ID for the second moving platform (vertical)
-    int spawnPointID;
-    int deathZoneID;  // ID for a death zone object
+    // Game object update functions
+    void update();  // Update game state
+    void updateGameObjects();  // Updates positions of players, platforms, etc.
+    void updateCamera();
 
-    int rightBoundaryID;
-    int leftBoundaryID;
-    int leftScrollCount;
-    int rightScrollCount;
+    // Collision handling functions
+    void checkCollisions();  // Check for collisions with platforms, boundaries, and death zones
+    void handleCollision(int platformID);  // Handle player-platform collisions
+    void handleDeathzone();  // Handle player entering death zone
+    void handleBoundaries();  // Handle player colliding with screen boundaries
 
-    // Initialize the game objects such as player, platforms, etc.
-    void initGameObjects();
+    // Rendering functions
+    void render();  // Renders all game objects on the screen
+    void renderPlatform(int platformID);  // Renders a platform by its ID
+    void renderPlayer(int playerID);  // Renders a player by its ID
 
-    // Handle player input, SDL events, and send updates to the server via ZeroMQ
-    void handleEvents(zmq::socket_t& reqSocket);
+    // Input handling and networking functions
+    void handleEvents();  // Handles SDL events and player input
+    void sendMovementUpdate();  // Sends the current player's position to the server
+    void receivePlayerPositions();  // Receives all players' positions from the server
+    void sendDisconnectMessage();
 
-    // Handle collisions with platforms or other objects
-    void handleCollision(int platformID);
+    // SDL variables
+    SDL_Renderer* renderer;  // The SDL renderer used to draw on the screen
+    SDL_Event e;  // SDL event for handling input
 
-    // Handle death zone collision
-    void handleDeathzone();
+    // Networking variables
+    zmq::socket_t& reqSocket;  // ZeroMQ request socket (REQ) to send player position to the server
+    zmq::socket_t& subSocket;  // ZeroMQ subscriber socket (SUB) to receive updates from the server
 
-    // Handle boundary collisions
-    void handleBoundaries();
+    // Game objects and properties
+    int clientId;  // The ID assigned to this player's character by the server
+    int playerID;  // Player object ID in the PropertyManager
+    int platformID, platformID2, platformID3;  // IDs for static platforms
+    int movingPlatformID, movingPlatformID2;  // IDs for moving platforms
+    int deathZoneID;  // ID for the death zone
+    int rightBoundaryID, leftBoundaryID;  // IDs for screen boundaries
+    int spawnPointID;  // ID for the player's spawn point
 
-    // Check for collisions and handle accordingly
-    void checkCollisions();
+    std::unordered_map<int, PlayerPosition> allPlayers;  // Map of all players' positions (received from the server)
+    std::unordered_map<int, SDL_Rect> allRects;  // Map to store player rectangles for rendering
 
-    // Update game object properties based on logic (e.g., movement, collisions)
-    void updateGameObjects();
+    // Timeline and timing
+    Timeline gameTimeline;  // Used for managing game pause/unpause and time scaling
+    std::chrono::steady_clock::time_point lastTime;  // Last time for frame delta calculation
 
-    // Render game objects on the screen
-    void render();
+    // Moving platform and boundary variables
+    std::mutex platformMutex;  // Mutex to ensure thread safety when updating platform positions
+    int rightScrollCount;  // Tracks right scrolling count for boundary movement
+    int leftScrollCount;  // Tracks left scrolling count for boundary movement
 
-    // Helper functions to render specific objects
-    void renderPlayer(int playerID);  // Render player object
-    void renderPlatform(int platformID);  // Render platform object
+    // Quit flag
+    bool quit;  // Flag to indicate whether the game should quit
+
+    // Threads
+    ThreadManager threadManager;  // For managing threads (e.g., platform movement)
+
+    int cameraX;
+    int cameraY;
 };
-
-#endif // GAME2_H

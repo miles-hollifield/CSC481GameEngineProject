@@ -7,8 +7,3 @@
 // Window dimensions
 #define SCREEN_WIDTH 1920
 #define SCREEN_HEIGHT 1080
-
-// Player position structure
-struct PlayerPosition {
-    int x, y;
-};

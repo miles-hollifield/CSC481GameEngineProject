@@ -53,7 +53,7 @@ void Game::initGameObjects() {
 
     // Create second moving platform (vertical movement)
     movingPlatformID2 = propertyManager.createObject();
-    propertyManager.addProperty(movingPlatformID2, "Rect", std::make_shared<RectProperty>(300, 200, 200, 50));  // Different initial position
+    propertyManager.addProperty(movingPlatformID2, "Rect", std::make_shared<RectProperty>(900, 200, 200, 50));  // Different initial position
     propertyManager.addProperty(movingPlatformID2, "Render", std::make_shared<RenderProperty>(255, 165, 0));  // Different color (orange)
     propertyManager.addProperty(movingPlatformID2, "Collision", std::make_shared<CollisionProperty>(true));
     propertyManager.addProperty(movingPlatformID2, "Velocity", std::make_shared<VelocityProperty>(0, 2));  // Moving vertically
@@ -82,17 +82,17 @@ void Game::initGameObjects() {
 
 // Main game loop
 void Game::run() {
-    ThreadManager threadManager;
+    //ThreadManager threadManager;
 
-    // Start a separate thread to handle platform updates
-    threadManager.createThread([this]() {
-        while (!quit) {
-            updateGameObjects();
+    //// Start a separate thread to handle platform updates
+    //threadManager.createThread([this]() {
+    //    while (!quit) {
+    //        updateGameObjects();
 
-            // Sleep to limit CPU usage
-            std::this_thread::sleep_for(std::chrono::milliseconds(16));
-        }
-        });
+    //        // Sleep to limit CPU usage
+    //        std::this_thread::sleep_for(std::chrono::milliseconds(16));
+    //    }
+    //    });
 
     // Main thread handles event polling, input, and rendering
     while (!quit) {
@@ -104,6 +104,8 @@ void Game::run() {
         // Update game state if needed (but no longer based on time)
         update();
 
+        updateGameObjects();
+
         // Render the game
         render();
 
@@ -112,7 +114,7 @@ void Game::run() {
     }
 
     // Join all threads before exiting
-    threadManager.joinAll();
+    //threadManager.joinAll();
 }
 
 

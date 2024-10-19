@@ -434,6 +434,14 @@ void Game::render() {
         if (id != clientId) {
             PlayerPosition pos = player.second;
 
+            for (int i = 0; i < rightScrollCount; i++) {
+				pos.x = pos.x - 50;
+            }
+
+            for (int i = 0; i < leftScrollCount; i++) {
+				pos.x = pos.x + 50;
+            }
+
             // Create SDL_Rect from position
             SDL_Rect otherPlayerRect = { pos.x, pos.y, 50, 50 };  // Assuming all players are 50x50 in size
 

@@ -36,9 +36,8 @@ private:
     void initGameObjects();  // Initializes the game objects (players, platforms, etc.)
 
     // Game object update functions
-    void update(float frameDelta);  // Update game state
-    void updateGameObjects(float frameDelta);  // Updates positions of players, platforms, etc.
-    void updatePlatformMovement(int platformID, float frameDelta);
+    void update();  // Update game state
+    void updateGameObjects();  // Updates positions of players, platforms, etc.
 
     // Collision handling functions
     void checkCollisions();  // Check for collisions with platforms, boundaries, and death zones
@@ -52,7 +51,7 @@ private:
     void renderPlayer(int playerID);  // Renders a player by its ID
 
     // Input handling and networking functions
-    void handleEvents(float frameDelta);  // Handles SDL events and player input
+    void handleEvents();  // Handles SDL events and player input
     void sendMovementUpdate();  // Sends the current player's position to the server
     void receivePlayerPositions();  // Receives all players' positions from the server
 

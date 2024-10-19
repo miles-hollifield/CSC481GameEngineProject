@@ -7,9 +7,7 @@
 
 // Constructor for the Game class
 Game::Game(SDL_Renderer* renderer, zmq::socket_t& reqSocket, zmq::socket_t& subSocket)
-    : renderer(renderer), reqSocket(reqSocket), subSocket(subSocket), quit(false), playerId(-1),
-    gameTimeline(nullptr, 1.0f),  // Initialize timeline with 1.0 speed (real-time)
-    lastTime(std::chrono::steady_clock::now())  // Initialize last time for frame delta calculation
+    : renderer(renderer), reqSocket(reqSocket), subSocket(subSocket), quit(false), playerId(-1)
 {
     initGameObjects();  // Initialize property-based objects (players, platforms, etc.)
 }
@@ -88,19 +86,8 @@ void Game::run() {
 
     // Start a separate thread to handle platform updates
     threadManager.createThread([this]() {
-        auto lastTime = std::chrono::steady_clock::now();
-
         while (!quit) {
-            // Calculate time elapsed (frame delta)
-            auto currentTime = std::chrono::steady_clock::now();
-            std::chrono::duration<float> deltaTime = currentTime - lastTime;
-            lastTime = currentTime;
-            float frameDelta = deltaTime.count();
-
-            // Only update platform if the game is not paused
-            if (!gameTimeline.isPaused()) {
-                updateGameObjects(frameDelta);
-            }
+            updateGameObjects();
 
             // Sleep to limit CPU usage
             std::this_thread::sleep_for(std::chrono::milliseconds(16));
@@ -109,21 +96,13 @@ void Game::run() {
 
     // Main thread handles event polling, input, and rendering
     while (!quit) {
-        // Calculate time elapsed (frame delta)
-        auto currentTime = std::chrono::steady_clock::now();
-        std::chrono::duration<float> deltaTime = currentTime - lastTime;
-        lastTime = currentTime;
-        float frameDelta = deltaTime.count();
-        // Handle input and events
-        handleEvents(frameDelta);
+        handleEvents();  // Handle input and events
 
         // Receive player positions from the server
         receivePlayerPositions();
 
-        // Update game state if not paused
-        if (!gameTimeline.isPaused()) {
-            update(frameDelta);
-        }
+        // Update game state if needed (but no longer based on time)
+        update();
 
         // Render the game
         render();
@@ -137,8 +116,8 @@ void Game::run() {
 }
 
 
-// Handle events, including input and time-related events
-void Game::handleEvents(float frameDelta) {
+// Handle events, including input
+void Game::handleEvents() {
     InputHandler inputHandler;
 
     while (SDL_PollEvent(&e) != 0) {
@@ -146,41 +125,25 @@ void Game::handleEvents(float frameDelta) {
             quit = true;
         }
 
-        // Always handle pause/unpause and time scaling events
-        inputHandler.handleEvent(e, gameTimeline);
+        // Handle input for controllable player entity
+        auto& propertyManager = PropertyManager::getInstance();
+        std::shared_ptr<RectProperty> playerRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(playerID, "Rect"));
+        std::shared_ptr<VelocityProperty> playerVel = std::static_pointer_cast<VelocityProperty>(propertyManager.getProperty(playerID, "Velocity"));
 
-        // Only handle player movement if the game is not paused
-        if (!gameTimeline.isPaused()) {
-            // Handle input for controllable player entity
-            auto& propertyManager = PropertyManager::getInstance();
-            std::shared_ptr<RectProperty> playerRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(playerID, "Rect"));
-            std::shared_ptr<VelocityProperty> playerVel = std::static_pointer_cast<VelocityProperty>(propertyManager.getProperty(playerID, "Velocity"));
+        // Keyboard input to control player movement
+        const Uint8* keystates = SDL_GetKeyboardState(NULL);
+        if (keystates[SDL_SCANCODE_LEFT]) {
+            playerVel->vx = -5;
+        }
+        else if (keystates[SDL_SCANCODE_RIGHT]) {
+            playerVel->vx = 5;
+        }
+        else {
+            playerVel->vx = 0;
+        }
 
-            // Adjust handleInput to ensure it works with the proper arguments
-            //inputHandler.handleInput(*playerRect, 300, playerVel->vx, playerVel->vy, frameDelta, gameTimeline);
-
-            while (SDL_PollEvent(&e)) {
-                if (e.type == SDL_QUIT) {
-                    quit = true;
-                }
-
-                // Keyboard input to control player movement
-                const Uint8* keystates = SDL_GetKeyboardState(NULL);
-                if (keystates[SDL_SCANCODE_LEFT]) {
-                    playerVel->vx = -5;
-                }
-                else if (keystates[SDL_SCANCODE_RIGHT]) {
-                    playerVel->vx = 5;
-                }
-                else {
-                    playerVel->vx = 0;
-                }
-
-                if (keystates[SDL_SCANCODE_UP] && playerVel->vy == 0) {  // Allow jumping only when on the ground
-                    playerVel->vy = -15;  // Jump velocity
-                }
-            }
-
+        if (keystates[SDL_SCANCODE_UP] && playerVel->vy == 0) {  // Allow jumping only when on the ground
+            playerVel->vy = -15;  // Jump velocity
         }
 
         // Send movement updates to the server
@@ -190,32 +153,30 @@ void Game::handleEvents(float frameDelta) {
 
 // Send the current player's position to the server
 void Game::sendMovementUpdate() {
-    if (!gameTimeline.isPaused()) {
-        zmq::message_t request(sizeof(playerId) + sizeof(PlayerPosition));
+    zmq::message_t request(sizeof(playerId) + sizeof(PlayerPosition));
 
-        // Package the player ID and position
-        PlayerPosition pos;
-        auto& propertyManager = PropertyManager::getInstance();
-        std::shared_ptr<RectProperty> playerRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(playerID, "Rect"));
+    // Package the player ID and position
+    PlayerPosition pos;
+    auto& propertyManager = PropertyManager::getInstance();
+    std::shared_ptr<RectProperty> playerRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(playerID, "Rect"));
 
-        pos.x = playerRect->x;
-        pos.y = playerRect->y;
+    pos.x = playerRect->x;
+    pos.y = playerRect->y;
 
-        memcpy(request.data(), &playerId, sizeof(playerId));
-        memcpy(static_cast<char*>(request.data()) + sizeof(playerId), &pos, sizeof(pos));
+    memcpy(request.data(), &playerId, sizeof(playerId));
+    memcpy(static_cast<char*>(request.data()) + sizeof(playerId), &pos, sizeof(pos));
 
-        // Send the data to the server
-        reqSocket.send(request, zmq::send_flags::none);
+    // Send the data to the server
+    reqSocket.send(request, zmq::send_flags::none);
 
-        // Receive acknowledgment from the server
-        zmq::message_t reply;
-        reqSocket.recv(reply);
+    // Receive acknowledgment from the server
+    zmq::message_t reply;
+    reqSocket.recv(reply);
 
-        // If the player ID is not assigned, get the assigned ID from the server
-        if (playerId == -1) {
-            memcpy(&playerId, reply.data(), sizeof(playerId));
-            std::cout << "Received assigned playerId: " << playerId << std::endl;
-        }
+    // If the player ID is not assigned, get the assigned ID from the server
+    if (playerId == -1) {
+        memcpy(&playerId, reply.data(), sizeof(playerId));
+        std::cout << "Received assigned playerId: " << playerId << std::endl;
     }
 }
 
@@ -225,45 +186,20 @@ void Game::receivePlayerPositions() {
     zmq::recv_result_t recvResult = subSocket.recv(update, zmq::recv_flags::dontwait);
 
     if (recvResult) {
-        // Only update player positions if the game is not paused
-        if (!gameTimeline.isPaused()) {
-            allPlayers.clear();
-            char* buffer = static_cast<char*>(update.data());
+        allPlayers.clear();
+        char* buffer = static_cast<char*>(update.data());
 
-            // Deserialize player positions
-            while (buffer < static_cast<char*>(update.data()) + update.size() - sizeof(PlayerPosition)) {
-                int id;
-                PlayerPosition pos;
+        // Deserialize player positions
+        while (buffer < static_cast<char*>(update.data()) + update.size() - sizeof(PlayerPosition)) {
+            int id;
+            PlayerPosition pos;
 
-                memcpy(&id, buffer, sizeof(id));
-                buffer += sizeof(id);
-                memcpy(&pos, buffer, sizeof(pos));
-                buffer += sizeof(pos);
+            memcpy(&id, buffer, sizeof(id));
+            buffer += sizeof(id);
+            memcpy(&pos, buffer, sizeof(pos));
+            buffer += sizeof(pos);
 
-                allPlayers[id] = pos;
-            }
-
-            // Deserialize moving platform 1 position and velocity
-            std::shared_ptr<RectProperty> movingPlatformRect = std::static_pointer_cast<RectProperty>(PropertyManager::getInstance().getProperty(movingPlatformID, "Rect"));
-            std::shared_ptr<VelocityProperty> movingPlatformVel = std::static_pointer_cast<VelocityProperty>(PropertyManager::getInstance().getProperty(movingPlatformID, "Velocity"));
-
-            memcpy(&movingPlatformRect->x, buffer, sizeof(int));  // Read platform 1 x position
-            buffer += sizeof(int);
-            memcpy(&movingPlatformRect->y, buffer, sizeof(int));  // Read platform 1 y position
-            buffer += sizeof(int);
-            memcpy(&movingPlatformVel->vx, buffer, sizeof(float));  // Read platform 1 velocity x
-            buffer += sizeof(float);
-
-            // Deserialize moving platform 2 position and velocity
-            std::shared_ptr<RectProperty> movingPlatformRect2 = std::static_pointer_cast<RectProperty>(PropertyManager::getInstance().getProperty(movingPlatformID2, "Rect"));
-            std::shared_ptr<VelocityProperty> movingPlatformVel2 = std::static_pointer_cast<VelocityProperty>(PropertyManager::getInstance().getProperty(movingPlatformID2, "Velocity"));
-
-            memcpy(&movingPlatformRect2->x, buffer, sizeof(int));  // Read platform 2 x position
-            buffer += sizeof(int);
-            memcpy(&movingPlatformRect2->y, buffer, sizeof(int));  // Read platform 2 y position
-            buffer += sizeof(int);
-            memcpy(&movingPlatformVel2->vy, buffer, sizeof(float));  // Read platform 2 velocity y
-
+            allPlayers[id] = pos;
         }
     }
 }
@@ -409,11 +345,11 @@ void Game::handleBoundaries() {
 }
 
 // Update the game state, including player movement, platform movement, and collision checks
-void Game::update(float frameDelta) {
+void Game::update() {
     auto& propertyManager = PropertyManager::getInstance();
 
     // 1. Update game objects (e.g., player position, platform movement)
-    updateGameObjects(frameDelta);
+    updateGameObjects();
 
     // 2. Check for collisions with platforms, boundaries, and death zones
     checkCollisions();
@@ -423,19 +359,19 @@ void Game::update(float frameDelta) {
 }
 
 // Update game object properties
-void Game::updateGameObjects(float frameDelta) {
+void Game::updateGameObjects() {
     auto& propertyManager = PropertyManager::getInstance();
 
     // 1. Update player position based on velocity
     std::shared_ptr<RectProperty> playerRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(playerID, "Rect"));
     std::shared_ptr<VelocityProperty> playerVel = std::static_pointer_cast<VelocityProperty>(propertyManager.getProperty(playerID, "Velocity"));
 
-    playerRect->x += static_cast<int>(playerVel->vx * frameDelta);
-    playerRect->y += static_cast<int>(playerVel->vy * frameDelta);
+    playerRect->x += playerVel->vx;
+    playerRect->y += playerVel->vy;
 
     // 2. Apply simple gravity to the player
     if (playerRect->y < SCREEN_HEIGHT) {
-        playerVel->vy += static_cast<int>(1 * frameDelta);  // Gravity effect
+        playerVel->vy += 1;  // Gravity effect
     }
     else {
         playerRect->y = SCREEN_HEIGHT;  // Clamp to ground
@@ -446,14 +382,13 @@ void Game::updateGameObjects(float frameDelta) {
     std::shared_ptr<RectProperty> movingPlatformRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(movingPlatformID, "Rect"));
     std::shared_ptr<VelocityProperty> movingPlatformVel = std::static_pointer_cast<VelocityProperty>(propertyManager.getProperty(movingPlatformID, "Velocity"));
 
-    /*movingPlatformRect->x += static_cast<int>(movingPlatformVel->vx * frameDelta);*/
     if (movingPlatformVel) {
-        movingPlatformRect->x += static_cast<int>(movingPlatformVel->vx * frameDelta);
+        movingPlatformRect->x += movingPlatformVel->vx;
     }
     else {
-        // Handle the error, log it, or set a default behavior
         std::cerr << "Error: movingPlatformVel is null" << std::endl;
     }
+
     if (movingPlatformRect->x <= 0 || movingPlatformRect->x >= SCREEN_WIDTH - movingPlatformRect->w) {  // Bounce within screen bounds
         movingPlatformVel->vx = -movingPlatformVel->vx;
     }
@@ -462,40 +397,11 @@ void Game::updateGameObjects(float frameDelta) {
     std::shared_ptr<RectProperty> movingPlatformRect2 = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(movingPlatformID2, "Rect"));
     std::shared_ptr<VelocityProperty> movingPlatformVel2 = std::static_pointer_cast<VelocityProperty>(propertyManager.getProperty(movingPlatformID2, "Velocity"));
 
-    if (movingPlatformVel2) {
-		movingPlatformRect2->y += static_cast<int>(movingPlatformVel2->vy * frameDelta);
-	}
-    else {
-        // Handle the error, log it, or set a default behavior
-        std::cerr << "Error: movingPlatformVel2 is null" << std::endl;
-    }
+    movingPlatformRect2->y += movingPlatformVel2->vy;
     if (movingPlatformRect2->y <= 0 || movingPlatformRect2->y >= SCREEN_HEIGHT - movingPlatformRect2->h) {  // Bounce within screen bounds
         movingPlatformVel2->vy = -movingPlatformVel2->vy;
     }
 }
-
-void Game::updatePlatformMovement(int platformID, float frameDelta) {
-    auto& propertyManager = PropertyManager::getInstance();
-    std::shared_ptr<RectProperty> platformRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(platformID, "Rect"));
-    std::shared_ptr<VelocityProperty> platformVel = std::static_pointer_cast<VelocityProperty>(propertyManager.getProperty(platformID, "Velocity"));
-
-    if (platformVel) {
-        platformRect->x += static_cast<int>(platformVel->vx * frameDelta);
-        platformRect->y += static_cast<int>(platformVel->vy * frameDelta);
-
-        // Bound checking for horizontal and vertical movement
-        if (platformRect->x <= 0 || platformRect->x >= SCREEN_WIDTH - platformRect->w) {
-            platformVel->vx = -platformVel->vx;
-        }
-        if (platformRect->y <= 0 || platformRect->y >= SCREEN_HEIGHT - platformRect->h) {
-            platformVel->vy = -platformVel->vy;
-        }
-    }
-    else {
-        std::cerr << "Error: Platform velocity is null for platformID: " << platformID << std::endl;
-    }
-}
-
 
 // Render game objects to the screen
 void Game::render() {

@@ -3,7 +3,6 @@
 #include "ThreadManager.h"
 #include <iostream>
 #include <cstring>
-#include "input.h"
 
 // Constructor for the Game class
 Game::Game(SDL_Renderer* renderer, zmq::socket_t& reqSocket, zmq::socket_t& subSocket)
@@ -120,8 +119,6 @@ void Game::run() {
 
 // Handle events, including input
 void Game::handleEvents() {
-    InputHandler inputHandler;
-
     while (SDL_PollEvent(&e) != 0) {
         if (e.type == SDL_QUIT) {
             quit = true;

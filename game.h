@@ -44,7 +44,6 @@ private:
     void checkCollisions();  // Check for collisions with platforms, boundaries, and death zones
     void handleCollision(int platformID);  // Handle player-platform collisions
     void handleDeathzone();  // Handle player entering death zone
-    void handleBoundaries();  // Handle player colliding with screen boundaries
 
     // Rendering functions
     void render();  // Renders all game objects on the screen
@@ -55,7 +54,6 @@ private:
     void handleEvents();  // Handles SDL events and player input
     void sendMovementUpdate();  // Sends the current player's position to the server
     void receivePlayerPositions();  // Receives all players' positions from the server
-    void sendDisconnectMessage();
 
     // SDL variables
     SDL_Renderer* renderer;  // The SDL renderer used to draw on the screen
@@ -71,11 +69,10 @@ private:
     int platformID, platformID2, platformID3;  // IDs for static platforms
     int movingPlatformID, movingPlatformID2;  // IDs for moving platforms
     int deathZoneID;  // ID for the death zone
-    int rightBoundaryID, leftBoundaryID;  // IDs for screen boundaries
     int spawnPointID;  // ID for the player's spawn point
 
     std::unordered_map<int, PlayerPosition> allPlayers;  // Map of all players' positions (received from the server)
-    std::unordered_map<int, SDL_Rect> allRects;  // Map to store player rectangles for rendering
+    //std::unordered_map<int, SDL_Rect> allRects;  // Map to store player rectangles for rendering
 
     // Timeline and timing
     Timeline gameTimeline;  // Used for managing game pause/unpause and time scaling
@@ -83,8 +80,6 @@ private:
 
     // Moving platform and boundary variables
     std::mutex platformMutex;  // Mutex to ensure thread safety when updating platform positions
-    int rightScrollCount;  // Tracks right scrolling count for boundary movement
-    int leftScrollCount;  // Tracks left scrolling count for boundary movement
 
     // Quit flag
     bool quit;  // Flag to indicate whether the game should quit

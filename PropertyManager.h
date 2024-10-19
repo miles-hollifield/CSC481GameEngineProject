@@ -26,6 +26,11 @@ public:
         return nullptr;
     }
 
+    // Check if an object exists in the properties map
+    bool hasObject(int objectID) const {
+        return properties.count(objectID) > 0;
+    }
+
     // Create a new game object and return its unique ID
     int createObject() {
         static int nextID = 0;

@@ -1,16 +1,17 @@
 #include "game.h"
-#include "PropertyManager.h"
-#include "SDL2/SDL.h"
+#include "PropertyManager.h" // For property-based model
+#include "ThreadManager.h"
 #include <iostream>
-#include <memory>
-#include <zmq.hpp>
-#include "defs.h"
+#include <cstring>
+#include "input.h"
 
-// Constructor
-Game::Game(SDL_Renderer* renderer)
-    : renderer(renderer), quit(false)
+// Constructor for the Game class
+Game::Game(SDL_Renderer* renderer, zmq::socket_t& reqSocket, zmq::socket_t& subSocket)
+    : renderer(renderer), reqSocket(reqSocket), subSocket(subSocket), quit(false), playerId(-1),
+    gameTimeline(nullptr, 1.0f),  // Initialize timeline with 1.0 speed (real-time)
+    lastTime(std::chrono::steady_clock::now())  // Initialize last time for frame delta calculation
 {
-    initGameObjects();
+    initGameObjects();  // Initialize property-based objects (players, platforms, etc.)
 }
 
 // Destructor
@@ -24,31 +25,31 @@ void Game::initGameObjects() {
     playerID = propertyManager.createObject();
     propertyManager.addProperty(playerID, "Rect", std::make_shared<RectProperty>(100, 400, 50, 50));
     propertyManager.addProperty(playerID, "Render", std::make_shared<RenderProperty>(255, 0, 0));
-	propertyManager.addProperty(playerID, "Physics", std::make_shared<PhysicsProperty>(10.0f));
-	propertyManager.addProperty(playerID, "Collision", std::make_shared<CollisionProperty>(true));
-	propertyManager.addProperty(playerID, "Velocity", std::make_shared<VelocityProperty>(0, 0));
+    propertyManager.addProperty(playerID, "Physics", std::make_shared<PhysicsProperty>(10.0f));
+    propertyManager.addProperty(playerID, "Collision", std::make_shared<CollisionProperty>(true));
+    propertyManager.addProperty(playerID, "Velocity", std::make_shared<VelocityProperty>(0, 0));
 
     // Create static platform objects
     platformID = propertyManager.createObject();
     propertyManager.addProperty(platformID, "Rect", std::make_shared<RectProperty>(50, 500, 200, 50));
-	propertyManager.addProperty(platformID, "Render", std::make_shared<RenderProperty>(0, 255, 0));
-	propertyManager.addProperty(platformID, "Collision", std::make_shared<CollisionProperty>(true));
+    propertyManager.addProperty(platformID, "Render", std::make_shared<RenderProperty>(0, 255, 0));
+    propertyManager.addProperty(platformID, "Collision", std::make_shared<CollisionProperty>(true));
 
     platformID2 = propertyManager.createObject();
     propertyManager.addProperty(platformID2, "Rect", std::make_shared<RectProperty>(250, 600, 200, 50));
-	propertyManager.addProperty(platformID2, "Render", std::make_shared<RenderProperty>(0, 0, 255));
-	propertyManager.addProperty(platformID2, "Collision", std::make_shared<CollisionProperty>(true));
+    propertyManager.addProperty(platformID2, "Render", std::make_shared<RenderProperty>(0, 0, 255));
+    propertyManager.addProperty(platformID2, "Collision", std::make_shared<CollisionProperty>(true));
 
     platformID3 = propertyManager.createObject();
     propertyManager.addProperty(platformID3, "Rect", std::make_shared<RectProperty>(450, 700, 400, 50));
-	propertyManager.addProperty(platformID3, "Render", std::make_shared<RenderProperty>(0, 255, 255));
-	propertyManager.addProperty(platformID3, "Collision", std::make_shared<CollisionProperty>(true));
+    propertyManager.addProperty(platformID3, "Render", std::make_shared<RenderProperty>(0, 255, 255));
+    propertyManager.addProperty(platformID3, "Collision", std::make_shared<CollisionProperty>(true));
 
     // Create moving platform
     movingPlatformID = propertyManager.createObject();
     propertyManager.addProperty(movingPlatformID, "Rect", std::make_shared<RectProperty>(150, 900, 200, 50));
-	propertyManager.addProperty(movingPlatformID, "Render", std::make_shared<RenderProperty>(255, 255, 0));
-	propertyManager.addProperty(movingPlatformID, "Collision", std::make_shared<CollisionProperty>(true));
+    propertyManager.addProperty(movingPlatformID, "Render", std::make_shared<RenderProperty>(255, 255, 0));
+    propertyManager.addProperty(movingPlatformID, "Collision", std::make_shared<CollisionProperty>(true));
     propertyManager.addProperty(movingPlatformID, "Velocity", std::make_shared<VelocityProperty>(2, 0));  // Moving horizontally
 
     // Create second moving platform (vertical movement)
@@ -59,128 +60,203 @@ void Game::initGameObjects() {
     propertyManager.addProperty(movingPlatformID2, "Velocity", std::make_shared<VelocityProperty>(0, 2));  // Moving vertically
 
 
-	spawnPointID = propertyManager.createObject();
-	propertyManager.addProperty(spawnPointID, "Rect", std::make_shared<RectProperty>(100, 400, 50, 50));
+    spawnPointID = propertyManager.createObject();
+    propertyManager.addProperty(spawnPointID, "Rect", std::make_shared<RectProperty>(100, 400, 50, 50));
 
     // Create death zone (hidden object)
     deathZoneID = propertyManager.createObject();
     propertyManager.addProperty(deathZoneID, "Rect", std::make_shared<RectProperty>(0, SCREEN_HEIGHT - 50, SCREEN_WIDTH, 50));  // Just above the bottom of the screen
-	propertyManager.addProperty(deathZoneID, "Collision", std::make_shared<CollisionProperty>(true));  // Enable collision detection
+    propertyManager.addProperty(deathZoneID, "Collision", std::make_shared<CollisionProperty>(true));  // Enable collision detection
 
-	rightBoundaryID = propertyManager.createObject();
-	propertyManager.addProperty(rightBoundaryID, "Rect", std::make_shared<RectProperty>(SCREEN_WIDTH - 50, 0, 50, SCREEN_HEIGHT));
-	propertyManager.addProperty(rightBoundaryID, "Collision", std::make_shared<CollisionProperty>(true));
+    rightBoundaryID = propertyManager.createObject();
+    propertyManager.addProperty(rightBoundaryID, "Rect", std::make_shared<RectProperty>(SCREEN_WIDTH - 50, 0, 50, SCREEN_HEIGHT));
+    propertyManager.addProperty(rightBoundaryID, "Collision", std::make_shared<CollisionProperty>(true));
     rightScrollCount = 0;
 
-	leftBoundaryID = propertyManager.createObject();
-	propertyManager.addProperty(leftBoundaryID, "Rect", std::make_shared<RectProperty>(0, 0, 50, SCREEN_HEIGHT));
-	propertyManager.addProperty(leftBoundaryID, "Collision", std::make_shared<CollisionProperty>(true));
+    leftBoundaryID = propertyManager.createObject();
+    propertyManager.addProperty(leftBoundaryID, "Rect", std::make_shared<RectProperty>(0, 0, 50, SCREEN_HEIGHT));
+    propertyManager.addProperty(leftBoundaryID, "Collision", std::make_shared<CollisionProperty>(true));
     leftScrollCount = 0;
 
 }
 
 // Main game loop
-void Game::run(zmq::socket_t& dealerSocket) {
+void Game::run() {
+    ThreadManager threadManager;
+
+    // Start a separate thread to handle platform updates
+    threadManager.createThread([this]() {
+        auto lastTime = std::chrono::steady_clock::now();
+
+        while (!quit) {
+            // Calculate time elapsed (frame delta)
+            auto currentTime = std::chrono::steady_clock::now();
+            std::chrono::duration<float> deltaTime = currentTime - lastTime;
+            lastTime = currentTime;
+            float frameDelta = deltaTime.count();
+
+            // Only update platform if the game is not paused
+            if (!gameTimeline.isPaused()) {
+                updateGameObjects(frameDelta);
+            }
+
+            // Sleep to limit CPU usage
+            std::this_thread::sleep_for(std::chrono::milliseconds(16));
+        }
+        });
+
+    // Main thread handles event polling, input, and rendering
     while (!quit) {
-        handleEvents(dealerSocket);  // Handle player input and send data to the server
-        updateGameObjects();
-        checkCollisions();
+        // Calculate time elapsed (frame delta)
+        auto currentTime = std::chrono::steady_clock::now();
+        std::chrono::duration<float> deltaTime = currentTime - lastTime;
+        lastTime = currentTime;
+        float frameDelta = deltaTime.count();
+        // Handle input and events
+        handleEvents(frameDelta);
+
+        // Receive player positions from the server
+        receivePlayerPositions();
+
+        // Update game state if not paused
+        if (!gameTimeline.isPaused()) {
+            update(frameDelta);
+        }
+
+        // Render the game
         render();
-        SDL_Delay(16);  // Cap frame rate
+
+        // Cap frame rate to around 60 FPS
+        SDL_Delay(16);
     }
+
+    // Join all threads before exiting
+    threadManager.joinAll();
 }
 
-// Handle player input, SDL events, and send updates to the server
-void Game::handleEvents(zmq::socket_t& dealerSocket) {
-    SDL_Event e;
-    auto& propertyManager = PropertyManager::getInstance();
-    std::shared_ptr<RectProperty> playerRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(playerID, "Rect"));
-    std::shared_ptr<VelocityProperty> playerVel = std::static_pointer_cast<VelocityProperty>(propertyManager.getProperty(playerID, "Velocity"));
 
-    while (SDL_PollEvent(&e)) {
+// Handle events, including input and time-related events
+void Game::handleEvents(float frameDelta) {
+    InputHandler inputHandler;
+
+    while (SDL_PollEvent(&e) != 0) {
         if (e.type == SDL_QUIT) {
             quit = true;
         }
 
-        // Handle key press events
-        if (e.type == SDL_KEYDOWN) {
-            switch (e.key.keysym.sym) {
-            case SDLK_LEFT:
-                playerVel->vx = -5;
-                break;
-            case SDLK_RIGHT:
-                playerVel->vx = 5;
-                break;
-            case SDLK_UP:
-                if (playerVel->vy == 0) {
-                    playerVel->vy = -15;
+        // Always handle pause/unpause and time scaling events
+        inputHandler.handleEvent(e, gameTimeline);
+
+        // Only handle player movement if the game is not paused
+        if (!gameTimeline.isPaused()) {
+            // Handle input for controllable player entity
+            auto& propertyManager = PropertyManager::getInstance();
+            std::shared_ptr<RectProperty> playerRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(playerID, "Rect"));
+            std::shared_ptr<VelocityProperty> playerVel = std::static_pointer_cast<VelocityProperty>(propertyManager.getProperty(playerID, "Velocity"));
+
+            // Adjust handleInput to ensure it works with the proper arguments
+            //inputHandler.handleInput(*playerRect, 300, playerVel->vx, playerVel->vy, frameDelta, gameTimeline);
+
+            while (SDL_PollEvent(&e)) {
+                if (e.type == SDL_QUIT) {
+                    quit = true;
                 }
-                break;
+
+                // Keyboard input to control player movement
+                const Uint8* keystates = SDL_GetKeyboardState(NULL);
+                if (keystates[SDL_SCANCODE_LEFT]) {
+                    playerVel->vx = -5;
+                }
+                else if (keystates[SDL_SCANCODE_RIGHT]) {
+                    playerVel->vx = 5;
+                }
+                else {
+                    playerVel->vx = 0;
+                }
+
+                if (keystates[SDL_SCANCODE_UP] && playerVel->vy == 0) {  // Allow jumping only when on the ground
+                    playerVel->vy = -15;  // Jump velocity
+                }
             }
+
         }
 
-        // Handle key release events
-        if (e.type == SDL_KEYUP) {
-            switch (e.key.keysym.sym) {
-            case SDLK_LEFT:
-            case SDLK_RIGHT:
-                playerVel->vx = 0;
-                break;
-            }
-        }
+        // Send movement updates to the server
+        sendMovementUpdate();
+    }
+}
 
-        // Send updated position to the server if it changed
-        PlayerPosition newPosition = { playerRect->x, playerRect->y };
-        if (newPosition.x != playerRect->x || newPosition.y != playerRect->y) {
-            playerRect->x = newPosition.x;
-            playerRect->y = newPosition.y;
+// Send the current player's position to the server
+void Game::sendMovementUpdate() {
+    if (!gameTimeline.isPaused()) {
+        zmq::message_t request(sizeof(playerId) + sizeof(PlayerPosition));
 
-            zmq::message_t request(sizeof(PlayerPosition));
-            memcpy(request.data(), &newPosition, sizeof(PlayerPosition));
+        // Package the player ID and position
+        PlayerPosition pos;
+        auto& propertyManager = PropertyManager::getInstance();
+        std::shared_ptr<RectProperty> playerRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(playerID, "Rect"));
 
-            try {
-                // Send position update (no need to wait for a reply in Dealer)
-                dealerSocket.send(request, zmq::send_flags::none);
-            }
-            catch (const zmq::error_t& ex) {
-                std::cerr << "Failed to send position: " << ex.what() << std::endl;
-            }
+        pos.x = playerRect->x;
+        pos.y = playerRect->y;
+
+        memcpy(request.data(), &playerId, sizeof(playerId));
+        memcpy(static_cast<char*>(request.data()) + sizeof(playerId), &pos, sizeof(pos));
+
+        // Send the data to the server
+        reqSocket.send(request, zmq::send_flags::none);
+
+        // Receive acknowledgment from the server
+        zmq::message_t reply;
+        reqSocket.recv(reply);
+
+        // If the player ID is not assigned, get the assigned ID from the server
+        if (playerId == -1) {
+            memcpy(&playerId, reply.data(), sizeof(playerId));
+            std::cout << "Received assigned playerId: " << playerId << std::endl;
         }
     }
 }
 
-// Update other players' positions based on server data
-void Game::updatePlayerPosition(int playerID, const PlayerPosition& pos) {
-    auto& propertyManager = PropertyManager::getInstance();
-    std::shared_ptr<RectProperty> playerRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(playerID, "Rect"));
-    playerRect->x = pos.x;
-    playerRect->y = pos.y;
-}
+// Receive player positions from the server
+void Game::receivePlayerPositions() {
+    zmq::message_t update;
+    zmq::recv_result_t recvResult = subSocket.recv(update, zmq::recv_flags::dontwait);
 
-// Update platform positions based on server data
-void Game::updatePlatformPosition(const PlayerPosition& pos) {
-    auto& propertyManager = PropertyManager::getInstance();
-    std::shared_ptr<RectProperty> platformRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(movingPlatformID, "Rect"));
-    platformRect->x = pos.x;
-    platformRect->y = pos.y;
-}
+    if (recvResult) {
+        // Only update player positions if the game is not paused
+        if (!gameTimeline.isPaused()) {
+            allPlayers.clear();
+            char* buffer = static_cast<char*>(update.data());
 
-void Game::updateVerticalPlatformPosition(const PlayerPosition& pos) {
-    auto& propertyManager = PropertyManager::getInstance();
-    std::shared_ptr<RectProperty> platformRect2 = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(movingPlatformID2, "Rect"));
-    platformRect2->x = pos.x;
-    platformRect2->y = pos.y;
+            // Deserialize player positions
+            while (buffer < static_cast<char*>(update.data()) + update.size() - sizeof(PlayerPosition)) {
+                int id;
+                PlayerPosition pos;
+
+                memcpy(&id, buffer, sizeof(id));
+                buffer += sizeof(id);
+                memcpy(&pos, buffer, sizeof(pos));
+                buffer += sizeof(pos);
+
+                allPlayers[id] = pos;
+            }
+
+            // Update platform position
+            memcpy(&movingPlatformID, buffer, sizeof(PlayerPosition));
+			memcpy(&movingPlatformID2, buffer, sizeof(PlayerPosition));
+        }
+    }
 }
 
 void Game::handleCollision(int platformID) {
     auto& propertyManager = PropertyManager::getInstance();
     std::shared_ptr<RectProperty> playerRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(playerID, "Rect"));
-	std::shared_ptr<VelocityProperty> playerVel = std::static_pointer_cast<VelocityProperty>(propertyManager.getProperty(playerID, "Velocity"));
-	std::shared_ptr<PhysicsProperty> playerPhysics = std::static_pointer_cast<PhysicsProperty>(propertyManager.getProperty(playerID, "Physics"));
+    std::shared_ptr<VelocityProperty> playerVel = std::static_pointer_cast<VelocityProperty>(propertyManager.getProperty(playerID, "Velocity"));
+    std::shared_ptr<PhysicsProperty> playerPhysics = std::static_pointer_cast<PhysicsProperty>(propertyManager.getProperty(playerID, "Physics"));
     SDL_Rect playRect = { playerRect->x, playerRect->y, playerRect->w, playerRect->h }; // This is just to check collision
 
-	std::shared_ptr<RectProperty> platformRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(platformID, "Rect"));
-	SDL_Rect platRect = { platformRect->x, platformRect->y, platformRect->w, platformRect->h }; // This is just to check collision
+    std::shared_ptr<RectProperty> platformRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(platformID, "Rect"));
+    SDL_Rect platRect = { platformRect->x, platformRect->y, platformRect->w, platformRect->h }; // This is just to check collision
 
     if (SDL_HasIntersection(&playRect, &platRect)) {
         if (playerRect->y + playerRect->h / 2 < platformRect->y) { // checks above platform
@@ -227,7 +303,7 @@ void Game::checkCollisions() {
 void Game::handleDeathzone() {
     auto& propertyManager = PropertyManager::getInstance();
     std::shared_ptr<RectProperty> playerRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(playerID, "Rect"));
-	std::shared_ptr<VelocityProperty> playerVel = std::static_pointer_cast<VelocityProperty>(propertyManager.getProperty(playerID, "Velocity"));
+    std::shared_ptr<VelocityProperty> playerVel = std::static_pointer_cast<VelocityProperty>(propertyManager.getProperty(playerID, "Velocity"));
     SDL_Rect playRect = { playerRect->x, playerRect->y, playerRect->w, playerRect->h };
 
     std::shared_ptr<RectProperty> deathzoneRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(deathZoneID, "Rect"));
@@ -241,20 +317,20 @@ void Game::handleDeathzone() {
     std::shared_ptr<RectProperty> platformRect2 = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(platformID2, "Rect"));
     std::shared_ptr<RectProperty> platformRect3 = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(platformID3, "Rect"));
     std::shared_ptr<RectProperty> movingPlatformRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(movingPlatformID, "Rect"));
-	std::shared_ptr<RectProperty> movingPlatformRect2 = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(movingPlatformID2, "Rect"));
+    std::shared_ptr<RectProperty> movingPlatformRect2 = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(movingPlatformID2, "Rect"));
 
     if (SDL_HasIntersection(&playRect, &deathRect)) {
         playerRect->x = spawnpointRect->x;
         playerRect->y = spawnpointRect->y;
         playerVel->vy = 0.0f;
-		playerVel->vx = 0.0f;
-        
+        playerVel->vx = 0.0f;
+
         for (int i = 0; i < rightScrollCount; i++) {
             platformRect->x = platformRect->x + playerRect->w;
             platformRect2->x = platformRect2->x + playerRect->w;
             platformRect3->x = platformRect3->x + playerRect->w;
             movingPlatformRect->x = movingPlatformRect->x + playerRect->w;
-			movingPlatformRect2->x = movingPlatformRect2->x + playerRect->w;
+            movingPlatformRect2->x = movingPlatformRect2->x + playerRect->w;
         }
 
         for (int i = 0; i < leftScrollCount; i++) {
@@ -262,90 +338,104 @@ void Game::handleDeathzone() {
             platformRect2->x = platformRect2->x - playerRect->w;
             platformRect3->x = platformRect3->x - playerRect->w;
             movingPlatformRect->x = movingPlatformRect->x - playerRect->w;
-			movingPlatformRect2->x = movingPlatformRect2->x - playerRect->w;
+            movingPlatformRect2->x = movingPlatformRect2->x - playerRect->w;
         }
 
-		rightScrollCount = 0;
-		leftScrollCount = 0;
+        rightScrollCount = 0;
+        leftScrollCount = 0;
     }
 }
 
 void Game::handleBoundaries() {
     auto& propertyManager = PropertyManager::getInstance();
-	std::shared_ptr<RectProperty> playerRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(playerID, "Rect"));
-	std::shared_ptr<RectProperty> rightBoundaryRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(rightBoundaryID, "Rect"));
-	std::shared_ptr<RectProperty> leftBoundaryRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(leftBoundaryID, "Rect"));
-	std::shared_ptr<RectProperty> platformRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(platformID, "Rect"));
-	std::shared_ptr<RectProperty> platformRect2 = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(platformID2, "Rect"));
-	std::shared_ptr<RectProperty> platformRect3 = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(platformID3, "Rect"));
-	std::shared_ptr<RectProperty> movingPlatformRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(movingPlatformID, "Rect"));
-	//std::shared_ptr<RectProperty> spawnpointRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(spawnPointID, "Rect"));
-	std::shared_ptr<RectProperty> movingPlatformRect2 = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(movingPlatformID2, "Rect"));
+    std::shared_ptr<RectProperty> playerRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(playerID, "Rect"));
+    std::shared_ptr<RectProperty> rightBoundaryRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(rightBoundaryID, "Rect"));
+    std::shared_ptr<RectProperty> leftBoundaryRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(leftBoundaryID, "Rect"));
+    std::shared_ptr<RectProperty> platformRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(platformID, "Rect"));
+    std::shared_ptr<RectProperty> platformRect2 = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(platformID2, "Rect"));
+    std::shared_ptr<RectProperty> platformRect3 = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(platformID3, "Rect"));
+    std::shared_ptr<RectProperty> movingPlatformRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(movingPlatformID, "Rect"));
+    //std::shared_ptr<RectProperty> spawnpointRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(spawnPointID, "Rect"));
+    std::shared_ptr<RectProperty> movingPlatformRect2 = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(movingPlatformID2, "Rect"));
 
     SDL_Rect playRect = { playerRect->x, playerRect->y, playerRect->w, playerRect->h };
-	SDL_Rect rightRect = { rightBoundaryRect->x, rightBoundaryRect->y, rightBoundaryRect->w, rightBoundaryRect->h };
-	SDL_Rect leftRect = { leftBoundaryRect->x, leftBoundaryRect->y, leftBoundaryRect->w, leftBoundaryRect->h };
+    SDL_Rect rightRect = { rightBoundaryRect->x, rightBoundaryRect->y, rightBoundaryRect->w, rightBoundaryRect->h };
+    SDL_Rect leftRect = { leftBoundaryRect->x, leftBoundaryRect->y, leftBoundaryRect->w, leftBoundaryRect->h };
 
-	if (SDL_HasIntersection(&playRect, &rightRect)) {
-		playerRect->x = rightBoundaryRect->x - playerRect->w;
-		platformRect->x = platformRect->x - playerRect->w;
-		platformRect2->x = platformRect2->x - playerRect->w;
-		platformRect3->x = platformRect3->x - playerRect->w;
-		movingPlatformRect->x = movingPlatformRect->x - playerRect->w;
-		movingPlatformRect2->x = movingPlatformRect2->x - playerRect->w;
-		//spawnpointRect->x = spawnpointRect->x - playerRect->w;
+    if (SDL_HasIntersection(&playRect, &rightRect)) {
+        playerRect->x = rightBoundaryRect->x - playerRect->w;
+        platformRect->x = platformRect->x - playerRect->w;
+        platformRect2->x = platformRect2->x - playerRect->w;
+        platformRect3->x = platformRect3->x - playerRect->w;
+        movingPlatformRect->x = movingPlatformRect->x - playerRect->w;
+        movingPlatformRect2->x = movingPlatformRect2->x - playerRect->w;
+        //spawnpointRect->x = spawnpointRect->x - playerRect->w;
         rightScrollCount++;
 
-	}
+    }
 
-	if (SDL_HasIntersection(&playRect, &leftRect)) {
-		playerRect->x = leftBoundaryRect->x + playerRect->w;
+    if (SDL_HasIntersection(&playRect, &leftRect)) {
+        playerRect->x = leftBoundaryRect->x + playerRect->w;
         platformRect->x = platformRect->x + playerRect->w;
         platformRect2->x = platformRect2->x + playerRect->w;
         platformRect3->x = platformRect3->x + playerRect->w;
         movingPlatformRect->x = movingPlatformRect->x + playerRect->w;
-		movingPlatformRect2->x = movingPlatformRect2->x + playerRect->w;
-		//spawnpointRect->x = spawnpointRect->x + playerRect->w;
+        movingPlatformRect2->x = movingPlatformRect2->x + playerRect->w;
+        //spawnpointRect->x = spawnpointRect->x + playerRect->w;
         leftScrollCount++;
 
-	}
+    }
 
 }
 
-// Update game object properties
-void Game::updateGameObjects() {
+// Update the game state, including player movement, platform movement, and collision checks
+void Game::update(float frameDelta) {
     auto& propertyManager = PropertyManager::getInstance();
 
-    // Update player position based on velocity
+    // 1. Update game objects (e.g., player position, platform movement)
+    updateGameObjects(frameDelta);
+
+    // 2. Check for collisions with platforms, boundaries, and death zones
+    checkCollisions();
+
+    // 3. Handle any game-specific logic such as respawning, scoring, etc.
+    // (Currently not part of the logic, but this would be added here if needed)
+}
+
+// Update game object properties
+void Game::updateGameObjects(float frameDelta) {
+    auto& propertyManager = PropertyManager::getInstance();
+
+    // 1. Update player position based on velocity
     std::shared_ptr<RectProperty> playerRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(playerID, "Rect"));
     std::shared_ptr<VelocityProperty> playerVel = std::static_pointer_cast<VelocityProperty>(propertyManager.getProperty(playerID, "Velocity"));
 
-    playerRect->x += playerVel->vx;
-    playerRect->y += playerVel->vy;
+    playerRect->x += static_cast<int>(playerVel->vx * frameDelta);
+    playerRect->y += static_cast<int>(playerVel->vy * frameDelta);
 
-    // Simple gravity for the player
+    // 2. Apply simple gravity to the player
     if (playerRect->y < SCREEN_HEIGHT) {
-        playerVel->vy += 1;  // Gravity effect
+        playerVel->vy += static_cast<int>(1 * frameDelta);  // Gravity effect
     }
     else {
-        playerRect->y = SCREEN_HEIGHT;
-        playerVel->vy = 0;
+        playerRect->y = SCREEN_HEIGHT;  // Clamp to ground
+        playerVel->vy = 0;  // Stop falling when hitting the ground
     }
 
-    // Example: Update moving platform position
+    // 3. Update moving platform position
     std::shared_ptr<RectProperty> movingPlatformRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(movingPlatformID, "Rect"));
     std::shared_ptr<VelocityProperty> movingPlatformVel = std::static_pointer_cast<VelocityProperty>(propertyManager.getProperty(movingPlatformID, "Velocity"));
 
-    movingPlatformRect->x += movingPlatformVel->vx;
-    if (movingPlatformRect->x <= 0 || movingPlatformRect->x >= SCREEN_WIDTH - 100) {  // Bounce within screen bounds
+    movingPlatformRect->x += static_cast<int>(movingPlatformVel->vx * frameDelta);
+    if (movingPlatformRect->x <= 0 || movingPlatformRect->x >= SCREEN_WIDTH - movingPlatformRect->w) {  // Bounce within screen bounds
         movingPlatformVel->vx = -movingPlatformVel->vx;
     }
 
-    // Update second moving platform (vertical movement)
+    // 4. Update second moving platform (vertical movement)
     std::shared_ptr<RectProperty> movingPlatformRect2 = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(movingPlatformID2, "Rect"));
     std::shared_ptr<VelocityProperty> movingPlatformVel2 = std::static_pointer_cast<VelocityProperty>(propertyManager.getProperty(movingPlatformID2, "Velocity"));
 
-    movingPlatformRect2->y += movingPlatformVel2->vy;
+    movingPlatformRect2->y += static_cast<int>(movingPlatformVel2->vy * frameDelta);
     if (movingPlatformRect2->y <= 0 || movingPlatformRect2->y >= SCREEN_HEIGHT - movingPlatformRect2->h) {  // Bounce within screen bounds
         movingPlatformVel2->vy = -movingPlatformVel2->vy;
     }
@@ -354,22 +444,34 @@ void Game::updateGameObjects() {
 // Render game objects to the screen
 void Game::render() {
     // Clear screen
-    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_SetRenderDrawColor(renderer, 0, 0, 255, 255);
     SDL_RenderClear(renderer);
 
     // Render static platforms and moving platforms
-    //SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);  // Red for static platforms
     renderPlatform(platformID);
     renderPlatform(platformID2);  // Render second platform
     renderPlatform(platformID3);  // Render third platform
 
-    //SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255);  // Cyan for moving platform
     renderPlatform(movingPlatformID);  // Render moving platform
-	renderPlatform(movingPlatformID2);  // Render second moving platform
+    renderPlatform(movingPlatformID2);  // Render second moving platform
 
     // Render player character
-    //SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);  // Yellow for player
     renderPlayer(playerID);
+
+    // Render other players
+    for (const auto& player : allPlayers) {
+        int id = player.first;
+        if (id != playerID) {
+            PlayerPosition pos = player.second;
+
+            // Create SDL_Rect from position
+            SDL_Rect otherPlayerRect = { pos.x, pos.y, 50, 50 };  // Assuming all players are 50x50 in size
+
+            // Render other players as green rectangles
+            SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);  // Green for other players
+            SDL_RenderFillRect(renderer, &otherPlayerRect);
+        }
+    }
 
     SDL_RenderPresent(renderer);  // Present the updated screen
 }
@@ -378,9 +480,12 @@ void Game::render() {
 void Game::renderPlatform(int platformID) {
     auto& propertyManager = PropertyManager::getInstance();
     std::shared_ptr<RectProperty> rect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(platformID, "Rect"));
-    SDL_Rect platformRect = { rect->x, rect->y, rect->w, rect->h };  // Example size for platforms
-	std::shared_ptr<RenderProperty> render = std::static_pointer_cast<RenderProperty>(propertyManager.getProperty(platformID, "Render"));
-	SDL_SetRenderDrawColor(renderer, render->r, render->g, render->b, 255);
+
+    // Build SDL_Rect using x, y, w, h from RectProperty
+    SDL_Rect platformRect = { rect->x, rect->y, rect->w, rect->h };
+
+    std::shared_ptr<RenderProperty> render = std::static_pointer_cast<RenderProperty>(propertyManager.getProperty(platformID, "Render"));
+    SDL_SetRenderDrawColor(renderer, render->r, render->g, render->b, 255);
     SDL_RenderFillRect(renderer, &platformRect);
 }
 
@@ -388,8 +493,11 @@ void Game::renderPlatform(int platformID) {
 void Game::renderPlayer(int playerID) {
     auto& propertyManager = PropertyManager::getInstance();
     std::shared_ptr<RectProperty> rect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(playerID, "Rect"));
-    SDL_Rect playerRect = { rect->x, rect->y, rect->w, rect->h };  // Example size for player
-	std::shared_ptr<RenderProperty> render = std::static_pointer_cast<RenderProperty>(propertyManager.getProperty(playerID, "Render"));
-	SDL_SetRenderDrawColor(renderer, render->r, render->g, render->b, 255);
+
+    // Build SDL_Rect using x, y, w, h from RectProperty
+    SDL_Rect playerRect = { rect->x, rect->y, rect->w, rect->h };
+
+    std::shared_ptr<RenderProperty> render = std::static_pointer_cast<RenderProperty>(propertyManager.getProperty(playerID, "Render"));
+    SDL_SetRenderDrawColor(renderer, render->r, render->g, render->b, 255);
     SDL_RenderFillRect(renderer, &playerRect);
 }

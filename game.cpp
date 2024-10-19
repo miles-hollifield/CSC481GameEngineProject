@@ -136,6 +136,7 @@ void Game::handleEvents() {
         const Uint8* keystates = SDL_GetKeyboardState(NULL);
         if (keystates[SDL_SCANCODE_LEFT]) {
             playerVel->vx = -5;
+
         }
         else if (keystates[SDL_SCANCODE_RIGHT]) {
             playerVel->vx = 5;
@@ -144,7 +145,7 @@ void Game::handleEvents() {
             playerVel->vx = 0;
         }
 
-        if (keystates[SDL_SCANCODE_UP] && playerVel->vy == 0) {
+        if (keystates[SDL_SCANCODE_UP] && (playerVel->vy < 2 && playerVel->vy > -1)) {
             playerVel->vy = -15;  // Jump
         }
 
@@ -376,6 +377,9 @@ void Game::updateGameObjects() {
     // 2. Apply simple gravity to the player
     if (playerRect->y < SCREEN_HEIGHT) {
         playerVel->vy += 1;  // Gravity effect
+		if (playerVel->vy > 10) { // Terminal velocity
+			playerVel->vy = 10;
+        }
     }
     else {
         playerRect->y = SCREEN_HEIGHT;  // Clamp to ground

@@ -5,94 +5,77 @@
 #include <chrono>
 #include <cstring>
 #include <mutex>
-#include "defs.h"
-#include "Timeline.h"
+
+#define SCREEN_WIDTH 1920
+#define SCREEN_HEIGHT 1080
+#define HEARTBEAT_INTERVAL_MS 10000  // Time after which the server assumes a client has disconnected
 
 // Define player position structure
 struct PlayerPosition {
     int x, y;
 };
 
-// Global variables for players, platform position, mutex, and client tracking
+// Global variables for players, mutex, and client tracking
 std::unordered_map<int, PlayerPosition> players;  // Map of players and their positions
+std::unordered_map<int, std::chrono::steady_clock::time_point> lastHeartbeat; // Track last heartbeat time for each client
 std::mutex playersMutex;  // Mutex to ensure thread-safe access to player data
 int nextClientId = 0;  // Unique ID for each new player
-
-// Moving platform variables
-PlayerPosition platformPosition = { SCREEN_WIDTH / 3, SCREEN_HEIGHT - 300 };  // Initial position of the moving platform
-float platformVelocity = 100.0f;  // Velocity of the moving platform
-
-// Server's own timeline for the platform
-Timeline platformTimeline(nullptr, 1.0f);  // Server-side time scaling for shared entities (e.g., moving platform)
 
 // Function to handle incoming requests from clients
 void handleRequests(zmq::socket_t& repSocket) {
     while (true) {
-        // Check for new client connections
         zmq::message_t request;
-        zmq::recv_result_t received = repSocket.recv(request, zmq::recv_flags::dontwait);
-        if (received) {
-            // Extract player position from the request
-            int clientId;
-            PlayerPosition pos;
-            memcpy(&clientId, request.data(), sizeof(clientId));
-            memcpy(&pos, static_cast<char*>(request.data()) + sizeof(clientId), sizeof(pos));
 
-            std::lock_guard<std::mutex> lock(playersMutex);  // Lock the mutex for thread safety
-            if (clientId == -1) {
-                // Assign a new clientId for new connections
-                clientId = nextClientId++;
-                players[clientId] = pos;
-                std::cout << "New player connected: " << clientId << std::endl;
+        try {
+            // Check for new client connections or updates
+            zmq::recv_result_t received = repSocket.recv(request, zmq::recv_flags::none);
 
-                // Send the new clientId back to the client
-                zmq::message_t reply(sizeof(clientId));
-                memcpy(reply.data(), &clientId, sizeof(clientId));
-                repSocket.send(reply, zmq::send_flags::none);
-            }
-            else {
-                // Update the existing player's position
-                players[clientId] = pos;
+            if (received) {
+                // Extract player position from the request
+                int clientId;
+                PlayerPosition pos;
+                memcpy(&clientId, request.data(), sizeof(clientId));
+                memcpy(&pos, static_cast<char*>(request.data()) + sizeof(clientId), sizeof(pos));
 
-                // Send acknowledgment
-                zmq::message_t reply("OK", 2);
-                repSocket.send(reply, zmq::send_flags::none);
+                std::lock_guard<std::mutex> lock(playersMutex);  // Lock the mutex for thread safety
+                if (clientId == -1) {
+                    // Assign a new clientId for new connections
+                    clientId = nextClientId++;
+                    players[clientId] = pos;
+                    lastHeartbeat[clientId] = std::chrono::steady_clock::now();  // Record the heartbeat time
+                    std::cout << "New player connected: " << clientId << std::endl;
+
+                    // Send the new clientId back to the client
+                    zmq::message_t reply(sizeof(clientId));
+                    memcpy(reply.data(), &clientId, sizeof(clientId));
+                    repSocket.send(reply, zmq::send_flags::none);
+                }
+                else {
+                    // Update the existing player's position and record heartbeat time
+                    players[clientId] = pos;
+                    lastHeartbeat[clientId] = std::chrono::steady_clock::now();  // Update heartbeat time
+
+                    // Send acknowledgment
+                    zmq::message_t reply("OK", 2);
+                    repSocket.send(reply, zmq::send_flags::none);
+                }
             }
         }
-        // Sleep for a short period to simulate update intervals
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        catch (const zmq::error_t& e) {
+            std::cerr << "Error receiving message: " << e.what() << std::endl;
+        }
     }
 }
 
-// Function to update platform position based on velocity and timeline scaling
-void updatePlatformPosition(float deltaTime) {
-    // Use the server's timeline to adjust platform movement based on time scaling
-    platformPosition.x += static_cast<int>(platformVelocity * deltaTime / platformTimeline.getTic());
-
-    // Reverse direction if the platform reaches screen edges
-    if (platformPosition.x <= 0 || platformPosition.x >= SCREEN_WIDTH - 50) {
-        platformVelocity = -platformVelocity;
-    }
-}
-
-// Function to broadcast player positions and platform position to all clients
+// Broadcast player positions to clients (no platforms involved)
 void broadcastPositions(zmq::socket_t& pubSocket) {
-    auto lastTime = std::chrono::steady_clock::now();  // Track time for delta calculation
-
     while (true) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));  // Adjust as needed
 
-        auto currentTime = std::chrono::steady_clock::now();
-        std::chrono::duration<float> deltaTime = currentTime - lastTime;
-        lastTime = currentTime;
-
-        // Update platform position based on server's deltaTime
-        updatePlatformPosition(deltaTime.count());
-
         std::lock_guard<std::mutex> lock(playersMutex);  // Lock the mutex to ensure thread safety
         if (!players.empty()) {
-            // Prepare a buffer for broadcasting player positions + platform position
-            zmq::message_t update(players.size() * (sizeof(int) + sizeof(PlayerPosition)) + sizeof(PlayerPosition));
+            // Prepare a buffer for broadcasting player positions
+            zmq::message_t update(players.size() * (sizeof(int) + sizeof(PlayerPosition)));
             char* buffer = static_cast<char*>(update.data());
 
             // Serialize all players' data (clientId and PlayerPosition)
@@ -107,11 +90,33 @@ void broadcastPositions(zmq::socket_t& pubSocket) {
                 buffer += sizeof(pos);
             }
 
-            // Now, serialize platform position at the end of the message
-            std::memcpy(buffer, &platformPosition, sizeof(platformPosition));
-
             // Send the update to all clients
             pubSocket.send(update, zmq::send_flags::none);
+        }
+    }
+}
+
+// Function to check for client disconnections based on heartbeat timeouts
+void checkForTimeouts() {
+    while (true) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));  // Check every second
+
+        auto now = std::chrono::steady_clock::now();
+
+        std::lock_guard<std::mutex> lock(playersMutex);  // Lock the mutex for thread safety
+        for (auto it = lastHeartbeat.begin(); it != lastHeartbeat.end();) {
+            int clientId = it->first;
+            auto lastHeartbeatTime = it->second;
+
+            // Check if the heartbeat has timed out
+            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - lastHeartbeatTime).count() > HEARTBEAT_INTERVAL_MS) {
+                std::cout << "Client " << clientId << " disconnected due to timeout." << std::endl;
+                players.erase(clientId);  // Remove player from game world
+                it = lastHeartbeat.erase(it);  // Remove client from heartbeat tracking
+            }
+            else {
+                ++it;
+            }
         }
     }
 }
@@ -124,13 +129,15 @@ int main() {
     repSocket.bind("tcp://*:5555");  // Bind to port 5555 for client requests
     pubSocket.bind("tcp://*:5556");  // Bind to port 5556 for broadcasting positions
 
-    // Create threads for handling requests and broadcasting positions
+    // Create threads for handling requests, broadcasting positions, and checking for timeouts
     std::thread requestThread(handleRequests, std::ref(repSocket));
     std::thread broadcastThread(broadcastPositions, std::ref(pubSocket));
+    std::thread timeoutThread(checkForTimeouts);
 
     // Wait for threads to finish (in practice, they won't terminate)
     requestThread.join();
     broadcastThread.join();
+    timeoutThread.join();
 
     return 0;
 }

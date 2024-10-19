@@ -27,34 +27,34 @@ void Game::initGameObjects() {
     propertyManager.addProperty(playerID, "Collision", std::make_shared<CollisionProperty>(true)); // Enable collision
     propertyManager.addProperty(playerID, "Velocity", std::make_shared<VelocityProperty>(0, 0)); // Initial velocity
 
-    // Create static platforms with different sizes and positions
+    // Create static platforms with random colors
     platformID = propertyManager.createObject();
-    propertyManager.addProperty(platformID, "Rect", std::make_shared<RectProperty>(50, 500, 200, 50));
-    propertyManager.addProperty(platformID, "Render", std::make_shared<RenderProperty>(128, 0, 128)); // Purple color
+    propertyManager.addProperty(platformID, "Rect", std::make_shared<RectProperty>(50, 700, 200, 50)); // (50, 500, 200, 50)
+    propertyManager.addProperty(platformID, "Render", std::make_shared<RenderProperty>(135, 206, 235)); // Light blue color
     propertyManager.addProperty(platformID, "Collision", std::make_shared<CollisionProperty>(true));
 
     platformID2 = propertyManager.createObject();
-    propertyManager.addProperty(platformID2, "Rect", std::make_shared<RectProperty>(250, 600, 200, 50));
-    propertyManager.addProperty(platformID2, "Render", std::make_shared<RenderProperty>(255, 255, 0)); // Yellow color
+    propertyManager.addProperty(platformID2, "Rect", std::make_shared<RectProperty>(250, 600, 200, 50)); // (250, 600, 200, 50)
+    propertyManager.addProperty(platformID2, "Render", std::make_shared<RenderProperty>(34, 139, 34)); // Forest green color
     propertyManager.addProperty(platformID2, "Collision", std::make_shared<CollisionProperty>(true));
 
     platformID3 = propertyManager.createObject();
-    propertyManager.addProperty(platformID3, "Rect", std::make_shared<RectProperty>(450, 700, 900, 50));
-    propertyManager.addProperty(platformID3, "Render", std::make_shared<RenderProperty>(50, 50, 50)); // Gray color
+    propertyManager.addProperty(platformID3, "Rect", std::make_shared<RectProperty>(450, 500, 900, 50)); // (450, 700, 900, 50)
+    propertyManager.addProperty(platformID3, "Render", std::make_shared<RenderProperty>(255, 69, 0)); // Orange red color
     propertyManager.addProperty(platformID3, "Collision", std::make_shared<CollisionProperty>(true));
 
-    // Create a horizontally moving platform
+    // Create a horizontally moving platform with a random color
     movingPlatformID = propertyManager.createObject();
     propertyManager.addProperty(movingPlatformID, "Rect", std::make_shared<RectProperty>(150, 900, 200, 50));
-    propertyManager.addProperty(movingPlatformID, "Render", std::make_shared<RenderProperty>(255, 255, 0)); // Yellow color
+    propertyManager.addProperty(movingPlatformID, "Render", std::make_shared<RenderProperty>(75, 0, 130)); // Indigo color
     propertyManager.addProperty(movingPlatformID, "Collision", std::make_shared<CollisionProperty>(true));
     propertyManager.addProperty(movingPlatformID, "Velocity", std::make_shared<VelocityProperty>(2, 0));  // Moving horizontally
     std::cout << "Moving Platform 1 Velocity initialized" << std::endl;
 
-    // Create a vertically moving platform
+    // Create a vertically moving platform with a random color
     movingPlatformID2 = propertyManager.createObject();
     propertyManager.addProperty(movingPlatformID2, "Rect", std::make_shared<RectProperty>(1400, 200, 200, 50));  // Different position
-    propertyManager.addProperty(movingPlatformID2, "Render", std::make_shared<RenderProperty>(255, 165, 0));  // Orange color
+    propertyManager.addProperty(movingPlatformID2, "Render", std::make_shared<RenderProperty>(255, 215, 0));  // Gold color
     propertyManager.addProperty(movingPlatformID2, "Collision", std::make_shared<CollisionProperty>(true));
     propertyManager.addProperty(movingPlatformID2, "Velocity", std::make_shared<VelocityProperty>(0, 2));  // Moving vertically
     std::cout << "Moving Platform 2 Velocity initialized" << std::endl;
@@ -123,8 +123,8 @@ void Game::handleEvents() {
             playerVel->vx = 0;  // Stop moving horizontally
         }
 
-        if (keystates[SDL_SCANCODE_UP] && (playerVel->vy < 2 && playerVel->vy > -1)) {
-            playerVel->vy = -15;  // Jump
+        if (keystates[SDL_SCANCODE_UP] && (playerVel->vy == 1)) {
+            playerVel->vy = -15.1;  // Jump
         }
 
         // Send the player's movement update to the server

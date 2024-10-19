@@ -22,7 +22,7 @@ void Game::initGameObjects() {
     // Create player object with position and velocity properties
     playerID = propertyManager.createObject();
     propertyManager.addProperty(playerID, "Rect", std::make_shared<RectProperty>(100, 400, 50, 50));
-    propertyManager.addProperty(playerID, "Render", std::make_shared<RenderProperty>(255, 0, 0));
+    propertyManager.addProperty(playerID, "Render", std::make_shared<RenderProperty>(98, 9, 176));
     propertyManager.addProperty(playerID, "Physics", std::make_shared<PhysicsProperty>(10.0f));
     propertyManager.addProperty(playerID, "Collision", std::make_shared<CollisionProperty>(true));
     propertyManager.addProperty(playerID, "Velocity", std::make_shared<VelocityProperty>(0, 0));
@@ -30,35 +30,32 @@ void Game::initGameObjects() {
     // Create static platform objects
     platformID = propertyManager.createObject();
     propertyManager.addProperty(platformID, "Rect", std::make_shared<RectProperty>(50, 500, 200, 50));
-    propertyManager.addProperty(platformID, "Render", std::make_shared<RenderProperty>(128, 0, 128));
+    propertyManager.addProperty(platformID, "Render", std::make_shared<RenderProperty>(163, 11, 11));
     propertyManager.addProperty(platformID, "Collision", std::make_shared<CollisionProperty>(true));
 
     platformID2 = propertyManager.createObject();
     propertyManager.addProperty(platformID2, "Rect", std::make_shared<RectProperty>(250, 600, 200, 50));
-    propertyManager.addProperty(platformID2, "Render", std::make_shared<RenderProperty>(255, 255, 0));
+    propertyManager.addProperty(platformID2, "Render", std::make_shared<RenderProperty>(201, 113, 12));
     propertyManager.addProperty(platformID2, "Collision", std::make_shared<CollisionProperty>(true));
 
     platformID3 = propertyManager.createObject();
     propertyManager.addProperty(platformID3, "Rect", std::make_shared<RectProperty>(450, 700, 900, 50));
-    propertyManager.addProperty(platformID3, "Render", std::make_shared<RenderProperty>(50, 50, 50));
+    propertyManager.addProperty(platformID3, "Render", std::make_shared<RenderProperty>(83, 145, 7));
     propertyManager.addProperty(platformID3, "Collision", std::make_shared<CollisionProperty>(true));
 
     // Create moving platform
     movingPlatformID = propertyManager.createObject();
     propertyManager.addProperty(movingPlatformID, "Rect", std::make_shared<RectProperty>(150, 900, 200, 50));
-    propertyManager.addProperty(movingPlatformID, "Render", std::make_shared<RenderProperty>(255, 255, 0));
+    propertyManager.addProperty(movingPlatformID, "Render", std::make_shared<RenderProperty>(0, 0, 255));
     propertyManager.addProperty(movingPlatformID, "Collision", std::make_shared<CollisionProperty>(true));
     propertyManager.addProperty(movingPlatformID, "Velocity", std::make_shared<VelocityProperty>(2, 0));  // Moving horizontally
-    std::cout << "Moving Platform 1 Velocity initialized" << std::endl;
 
     // Create second moving platform (vertical movement)
     movingPlatformID2 = propertyManager.createObject();
     propertyManager.addProperty(movingPlatformID2, "Rect", std::make_shared<RectProperty>(1400, 200, 200, 50));  // Different initial position
-    propertyManager.addProperty(movingPlatformID2, "Render", std::make_shared<RenderProperty>(255, 165, 0));  // Different color (orange)
+    propertyManager.addProperty(movingPlatformID2, "Render", std::make_shared<RenderProperty>(186, 168, 7));  // Different color (orange)
     propertyManager.addProperty(movingPlatformID2, "Collision", std::make_shared<CollisionProperty>(true));
     propertyManager.addProperty(movingPlatformID2, "Velocity", std::make_shared<VelocityProperty>(0, 2));  // Moving vertically
-    std::cout << "Moving Platform 2 Velocity initialized" << std::endl;
-
 
     spawnPointID = propertyManager.createObject();
     propertyManager.addProperty(spawnPointID, "Rect", std::make_shared<RectProperty>(100, 400, 50, 50));
@@ -82,18 +79,6 @@ void Game::initGameObjects() {
 
 // Main game loop
 void Game::run() {
-    //ThreadManager threadManager;
-
-    //// Start a separate thread to handle platform updates
-    //threadManager.createThread([this]() {
-    //    while (!quit) {
-    //        updateGameObjects();
-
-    //        // Sleep to limit CPU usage
-    //        std::this_thread::sleep_for(std::chrono::milliseconds(16));
-    //    }
-    //    });
-
     // Main thread handles event polling, input, and rendering
     while (!quit) {
         handleEvents();  // Handle input and events
@@ -112,9 +97,6 @@ void Game::run() {
         // Cap frame rate to around 60 FPS
         SDL_Delay(16);
     }
-
-    // Join all threads before exiting
-    //threadManager.joinAll();
 }
 
 
@@ -146,7 +128,7 @@ void Game::handleEvents() {
         }
 
         if (keystates[SDL_SCANCODE_UP] && (playerVel->vy < 2 && playerVel->vy > -1)) {
-            playerVel->vy = -15;  // Jump
+            playerVel->vy = -20;  // Jump
         }
 
         // Send only local player updates
@@ -320,48 +302,6 @@ void Game::handleDeathzone() {
     }
 }
 
-void Game::handleBoundaries() {
-    auto& propertyManager = PropertyManager::getInstance();
-    std::shared_ptr<RectProperty> playerRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(playerID, "Rect"));
-    std::shared_ptr<RectProperty> rightBoundaryRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(rightBoundaryID, "Rect"));
-    std::shared_ptr<RectProperty> leftBoundaryRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(leftBoundaryID, "Rect"));
-    std::shared_ptr<RectProperty> platformRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(platformID, "Rect"));
-    std::shared_ptr<RectProperty> platformRect2 = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(platformID2, "Rect"));
-    std::shared_ptr<RectProperty> platformRect3 = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(platformID3, "Rect"));
-    std::shared_ptr<RectProperty> movingPlatformRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(movingPlatformID, "Rect"));
-    //std::shared_ptr<RectProperty> spawnpointRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(spawnPointID, "Rect"));
-    std::shared_ptr<RectProperty> movingPlatformRect2 = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(movingPlatformID2, "Rect"));
-
-    SDL_Rect playRect = { playerRect->x, playerRect->y, playerRect->w, playerRect->h };
-    SDL_Rect rightRect = { rightBoundaryRect->x, rightBoundaryRect->y, rightBoundaryRect->w, rightBoundaryRect->h };
-    SDL_Rect leftRect = { leftBoundaryRect->x, leftBoundaryRect->y, leftBoundaryRect->w, leftBoundaryRect->h };
-
-    if (SDL_HasIntersection(&playRect, &rightRect)) {
-        playerRect->x = rightBoundaryRect->x - playerRect->w;
-        platformRect->x = platformRect->x - playerRect->w;
-        platformRect2->x = platformRect2->x - playerRect->w;
-        platformRect3->x = platformRect3->x - playerRect->w;
-        movingPlatformRect->x = movingPlatformRect->x - playerRect->w;
-        movingPlatformRect2->x = movingPlatformRect2->x - playerRect->w;
-        //spawnpointRect->x = spawnpointRect->x - playerRect->w;
-        rightScrollCount++;
-
-    }
-
-    if (SDL_HasIntersection(&playRect, &leftRect)) {
-        playerRect->x = leftBoundaryRect->x + playerRect->w;
-        platformRect->x = platformRect->x + playerRect->w;
-        platformRect2->x = platformRect2->x + playerRect->w;
-        platformRect3->x = platformRect3->x + playerRect->w;
-        movingPlatformRect->x = movingPlatformRect->x + playerRect->w;
-        movingPlatformRect2->x = movingPlatformRect2->x + playerRect->w;
-        //spawnpointRect->x = spawnpointRect->x + playerRect->w;
-        leftScrollCount++;
-
-    }
-
-}
-
 // Update the game state, including player movement, platform movement, and collision checks
 void Game::update() {
     auto& propertyManager = PropertyManager::getInstance();
@@ -371,9 +311,6 @@ void Game::update() {
 
     // 2. Check for collisions with platforms, boundaries, and death zones
     checkCollisions();
-
-    // 3. Handle any game-specific logic such as respawning, scoring, etc.
-    // (Currently not part of the logic, but this would be added here if needed)
 }
 
 // Update game object properties
@@ -427,7 +364,7 @@ void Game::updateGameObjects() {
 // Render game objects to the screen
 void Game::render() {
     // Clear screen
-    SDL_SetRenderDrawColor(renderer, 0, 0, 255, 255);
+    SDL_SetRenderDrawColor(renderer, 96, 128, 255, 255);
     SDL_RenderClear(renderer);
 
     // Render static platforms and moving platforms

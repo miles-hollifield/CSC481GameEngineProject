@@ -8,16 +8,24 @@
 
 #define SCREEN_WIDTH 1920
 #define SCREEN_HEIGHT 1080
+#define DISCONNECT_TIMEOUT 5000  // Timeout in milliseconds to detect disconnections
 
 // Define player position structure
 struct PlayerPosition {
     int x, y;
+    long long lastActiveTime;  // Track the last time the player was active
 };
 
 // Global variables for players, mutex, and client tracking
 std::unordered_map<int, PlayerPosition> players;  // Map of players and their positions
 std::mutex playersMutex;  // Mutex to ensure thread-safe access to player data
 int nextClientId = 0;  // Unique ID for each new player
+
+// Get the current system time in milliseconds
+long long currentTimeMillis() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+}
 
 // Function to handle incoming requests from clients
 void handleRequests(zmq::socket_t& repSocket) {
@@ -38,6 +46,7 @@ void handleRequests(zmq::socket_t& repSocket) {
                 // Assign a new clientId for new connections
                 clientId = nextClientId++;
                 players[clientId] = pos;
+                players[clientId].lastActiveTime = currentTimeMillis();  // Set initial active time
                 std::cout << "New player connected: " << clientId << std::endl;
 
                 // Send the new clientId back to the client
@@ -48,6 +57,7 @@ void handleRequests(zmq::socket_t& repSocket) {
             else {
                 // Update the existing player's position
                 players[clientId] = pos;
+                players[clientId].lastActiveTime = currentTimeMillis();  // Update active time
 
                 // Send acknowledgment
                 zmq::message_t reply("OK", 2);
@@ -90,15 +100,25 @@ void broadcastPositions(zmq::socket_t& pubSocket) {
     }
 }
 
-// Function to handle player disconnections
+// Function to detect and remove disconnected players
 void handleDisconnections() {
     while (true) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));  // Check periodically
 
         std::lock_guard<std::mutex> lock(playersMutex);  // Lock the mutex for thread safety
-        // Simulated disconnect handling: you would typically need to check if clients stop sending data
-        // For simplicity, we'll skip actual disconnection logic
-        // In real-world usage, you'll need to handle timeouts or connection loss to detect disconnections
+
+        long long currentTime = currentTimeMillis();
+
+        // Iterate through players to check if any have been inactive for too long
+        for (auto it = players.begin(); it != players.end();) {
+            if (currentTime - it->second.lastActiveTime > DISCONNECT_TIMEOUT) {
+                std::cout << "Player " << it->first << " disconnected due to inactivity." << std::endl;
+                it = players.erase(it);  // Remove the player from the map
+            }
+            else {
+                ++it;
+            }
+        }
     }
 }
 
@@ -110,17 +130,15 @@ int main() {
     repSocket.bind("tcp://*:5555");  // Bind to port 5555 for client requests
     pubSocket.bind("tcp://*:5556");  // Bind to port 5556 for broadcasting positions
 
-    // Create threads for handling requests and broadcasting positions
+    // Create threads for handling requests, disconnections, and broadcasting positions
     std::thread requestThread(handleRequests, std::ref(repSocket));
+    std::thread disconnectionThread(handleDisconnections);  // Handle disconnections
     std::thread broadcastThread(broadcastPositions, std::ref(pubSocket));
-
-    // Add a thread to handle player disconnections
-    std::thread disconnectionThread(handleDisconnections);
 
     // Wait for threads to finish (in practice, they won't terminate)
     requestThread.join();
-    broadcastThread.join();
     disconnectionThread.join();
+    broadcastThread.join();
 
     return 0;
 }

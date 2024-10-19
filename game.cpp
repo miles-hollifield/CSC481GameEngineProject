@@ -7,7 +7,7 @@
 
 // Constructor for the Game class
 Game::Game(SDL_Renderer* renderer, zmq::socket_t& reqSocket, zmq::socket_t& subSocket)
-    : renderer(renderer), reqSocket(reqSocket), subSocket(subSocket), quit(false), clientId(-1)
+    : renderer(renderer), reqSocket(reqSocket), subSocket(subSocket), quit(false), clientId(-1), cameraX(0), cameraY(0)
 {
     initGameObjects();  // Initialize property-based objects (players, platforms, etc.)
 }
@@ -39,7 +39,7 @@ void Game::initGameObjects() {
     propertyManager.addProperty(platformID2, "Collision", std::make_shared<CollisionProperty>(true));
 
     platformID3 = propertyManager.createObject();
-    propertyManager.addProperty(platformID3, "Rect", std::make_shared<RectProperty>(450, 700, 400, 50));
+    propertyManager.addProperty(platformID3, "Rect", std::make_shared<RectProperty>(450, 700, 900, 50));
     propertyManager.addProperty(platformID3, "Render", std::make_shared<RenderProperty>(50, 50, 50));
     propertyManager.addProperty(platformID3, "Collision", std::make_shared<CollisionProperty>(true));
 
@@ -53,7 +53,7 @@ void Game::initGameObjects() {
 
     // Create second moving platform (vertical movement)
     movingPlatformID2 = propertyManager.createObject();
-    propertyManager.addProperty(movingPlatformID2, "Rect", std::make_shared<RectProperty>(900, 200, 200, 50));  // Different initial position
+    propertyManager.addProperty(movingPlatformID2, "Rect", std::make_shared<RectProperty>(1400, 200, 200, 50));  // Different initial position
     propertyManager.addProperty(movingPlatformID2, "Render", std::make_shared<RenderProperty>(255, 165, 0));  // Different color (orange)
     propertyManager.addProperty(movingPlatformID2, "Collision", std::make_shared<CollisionProperty>(true));
     propertyManager.addProperty(movingPlatformID2, "Velocity", std::make_shared<VelocityProperty>(0, 2));  // Moving vertically
@@ -152,6 +152,22 @@ void Game::handleEvents() {
         // Send only local player updates
         sendMovementUpdate();
     }
+
+    updateCamera();  // Update camera based on player position
+}
+
+// Update camera to follow the player
+void Game::updateCamera() {
+    auto& propertyManager = PropertyManager::getInstance();
+    std::shared_ptr<RectProperty> playerRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(playerID, "Rect"));
+
+    // Center camera on the player
+    cameraX = playerRect->x - (SCREEN_WIDTH / 2 - playerRect->w / 2);
+    cameraY = playerRect->y - (SCREEN_HEIGHT / 2 - playerRect->h / 2);
+
+    // Prevent camera from going out of bounds
+    if (cameraX < 0) cameraX = 0;
+    if (cameraY < 0) cameraY = 0;
 }
 
 
@@ -250,9 +266,6 @@ void Game::checkCollisions() {
             // Handle special cases for death zone and boundaries
             if (objectID == deathZoneID) {
                 handleDeathzone();
-            }
-            else if (objectID == rightBoundaryID || objectID == leftBoundaryID) {
-                handleBoundaries();
             }
             else {
                 handleCollision(objectID);  // Handle collision for any other object with Collision property
@@ -428,24 +441,13 @@ void Game::render() {
     // Render player character
     renderPlayer(playerID);
 
-    // Render other players
+    // Render other players, adjusted by the camera offset
     for (const auto& player : allPlayers) {
         int id = player.first;
         if (id != clientId) {
             PlayerPosition pos = player.second;
 
-            for (int i = 0; i < rightScrollCount; i++) {
-				pos.x = pos.x - 50;
-            }
-
-            for (int i = 0; i < leftScrollCount; i++) {
-				pos.x = pos.x + 50;
-            }
-
-            // Create SDL_Rect from position
-            SDL_Rect otherPlayerRect = { pos.x, pos.y, 50, 50 };  // Assuming all players are 50x50 in size
-
-            // Render other players as green rectangles
+            SDL_Rect otherPlayerRect = { pos.x - cameraX, pos.y - cameraY, 50, 50 };
             SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);  // Green for other players
             SDL_RenderFillRect(renderer, &otherPlayerRect);
         }
@@ -459,8 +461,8 @@ void Game::renderPlatform(int platformID) {
     auto& propertyManager = PropertyManager::getInstance();
     std::shared_ptr<RectProperty> rect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(platformID, "Rect"));
 
-    // Build SDL_Rect using x, y, w, h from RectProperty
-    SDL_Rect platformRect = { rect->x, rect->y, rect->w, rect->h };
+    // Adjust platform position by camera offset
+    SDL_Rect platformRect = { rect->x - cameraX, rect->y - cameraY, rect->w, rect->h };
 
     std::shared_ptr<RenderProperty> render = std::static_pointer_cast<RenderProperty>(propertyManager.getProperty(platformID, "Render"));
     SDL_SetRenderDrawColor(renderer, render->r, render->g, render->b, 255);
@@ -472,8 +474,8 @@ void Game::renderPlayer(int playerID) {
     auto& propertyManager = PropertyManager::getInstance();
     std::shared_ptr<RectProperty> rect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(playerID, "Rect"));
 
-    // Build SDL_Rect using x, y, w, h from RectProperty
-    SDL_Rect playerRect = { rect->x, rect->y, rect->w, rect->h };
+    // Adjust player position by camera offset
+    SDL_Rect playerRect = { rect->x - cameraX, rect->y - cameraY, rect->w, rect->h };
 
     std::shared_ptr<RenderProperty> render = std::static_pointer_cast<RenderProperty>(propertyManager.getProperty(playerID, "Render"));
     SDL_SetRenderDrawColor(renderer, render->r, render->g, render->b, 255);

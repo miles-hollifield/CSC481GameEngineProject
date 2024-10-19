@@ -38,6 +38,7 @@ private:
     // Game object update functions
     void update();  // Update game state
     void updateGameObjects();  // Updates positions of players, platforms, etc.
+    void updateCamera();
 
     // Collision handling functions
     void checkCollisions();  // Check for collisions with platforms, boundaries, and death zones
@@ -89,4 +90,7 @@ private:
 
     // Threads
     ThreadManager threadManager;  // For managing threads (e.g., platform movement)
+
+    int cameraX;
+    int cameraY;
 };

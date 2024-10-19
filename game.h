@@ -38,6 +38,7 @@ private:
     // Game object update functions
     void update(float frameDelta);  // Update game state
     void updateGameObjects(float frameDelta);  // Updates positions of players, platforms, etc.
+    void updatePlatformMovement(int platformID, float frameDelta);
 
     // Collision handling functions
     void checkCollisions();  // Check for collisions with platforms, boundaries, and death zones

@@ -51,6 +51,7 @@ void Game::initGameObjects() {
     propertyManager.addProperty(movingPlatformID, "Render", std::make_shared<RenderProperty>(255, 255, 0));
     propertyManager.addProperty(movingPlatformID, "Collision", std::make_shared<CollisionProperty>(true));
     propertyManager.addProperty(movingPlatformID, "Velocity", std::make_shared<VelocityProperty>(2, 0));  // Moving horizontally
+    std::cout << "Moving Platform 1 Velocity initialized" << std::endl;
 
     // Create second moving platform (vertical movement)
     movingPlatformID2 = propertyManager.createObject();
@@ -58,6 +59,7 @@ void Game::initGameObjects() {
     propertyManager.addProperty(movingPlatformID2, "Render", std::make_shared<RenderProperty>(255, 165, 0));  // Different color (orange)
     propertyManager.addProperty(movingPlatformID2, "Collision", std::make_shared<CollisionProperty>(true));
     propertyManager.addProperty(movingPlatformID2, "Velocity", std::make_shared<VelocityProperty>(0, 2));  // Moving vertically
+    std::cout << "Moving Platform 2 Velocity initialized" << std::endl;
 
 
     spawnPointID = propertyManager.createObject();
@@ -241,9 +243,27 @@ void Game::receivePlayerPositions() {
                 allPlayers[id] = pos;
             }
 
-            // Update platform position
-            memcpy(&movingPlatformID, buffer, sizeof(PlayerPosition));
-			memcpy(&movingPlatformID2, buffer, sizeof(PlayerPosition));
+            // Deserialize moving platform 1 position and velocity
+            std::shared_ptr<RectProperty> movingPlatformRect = std::static_pointer_cast<RectProperty>(PropertyManager::getInstance().getProperty(movingPlatformID, "Rect"));
+            std::shared_ptr<VelocityProperty> movingPlatformVel = std::static_pointer_cast<VelocityProperty>(PropertyManager::getInstance().getProperty(movingPlatformID, "Velocity"));
+
+            memcpy(&movingPlatformRect->x, buffer, sizeof(int));  // Read platform 1 x position
+            buffer += sizeof(int);
+            memcpy(&movingPlatformRect->y, buffer, sizeof(int));  // Read platform 1 y position
+            buffer += sizeof(int);
+            memcpy(&movingPlatformVel->vx, buffer, sizeof(float));  // Read platform 1 velocity x
+            buffer += sizeof(float);
+
+            // Deserialize moving platform 2 position and velocity
+            std::shared_ptr<RectProperty> movingPlatformRect2 = std::static_pointer_cast<RectProperty>(PropertyManager::getInstance().getProperty(movingPlatformID2, "Rect"));
+            std::shared_ptr<VelocityProperty> movingPlatformVel2 = std::static_pointer_cast<VelocityProperty>(PropertyManager::getInstance().getProperty(movingPlatformID2, "Velocity"));
+
+            memcpy(&movingPlatformRect2->x, buffer, sizeof(int));  // Read platform 2 x position
+            buffer += sizeof(int);
+            memcpy(&movingPlatformRect2->y, buffer, sizeof(int));  // Read platform 2 y position
+            buffer += sizeof(int);
+            memcpy(&movingPlatformVel2->vy, buffer, sizeof(float));  // Read platform 2 velocity y
+
         }
     }
 }
@@ -426,7 +446,14 @@ void Game::updateGameObjects(float frameDelta) {
     std::shared_ptr<RectProperty> movingPlatformRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(movingPlatformID, "Rect"));
     std::shared_ptr<VelocityProperty> movingPlatformVel = std::static_pointer_cast<VelocityProperty>(propertyManager.getProperty(movingPlatformID, "Velocity"));
 
-    movingPlatformRect->x += static_cast<int>(movingPlatformVel->vx * frameDelta);
+    /*movingPlatformRect->x += static_cast<int>(movingPlatformVel->vx * frameDelta);*/
+    if (movingPlatformVel) {
+        movingPlatformRect->x += static_cast<int>(movingPlatformVel->vx * frameDelta);
+    }
+    else {
+        // Handle the error, log it, or set a default behavior
+        std::cerr << "Error: movingPlatformVel is null" << std::endl;
+    }
     if (movingPlatformRect->x <= 0 || movingPlatformRect->x >= SCREEN_WIDTH - movingPlatformRect->w) {  // Bounce within screen bounds
         movingPlatformVel->vx = -movingPlatformVel->vx;
     }
@@ -435,11 +462,40 @@ void Game::updateGameObjects(float frameDelta) {
     std::shared_ptr<RectProperty> movingPlatformRect2 = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(movingPlatformID2, "Rect"));
     std::shared_ptr<VelocityProperty> movingPlatformVel2 = std::static_pointer_cast<VelocityProperty>(propertyManager.getProperty(movingPlatformID2, "Velocity"));
 
-    movingPlatformRect2->y += static_cast<int>(movingPlatformVel2->vy * frameDelta);
+    if (movingPlatformVel2) {
+		movingPlatformRect2->y += static_cast<int>(movingPlatformVel2->vy * frameDelta);
+	}
+    else {
+        // Handle the error, log it, or set a default behavior
+        std::cerr << "Error: movingPlatformVel2 is null" << std::endl;
+    }
     if (movingPlatformRect2->y <= 0 || movingPlatformRect2->y >= SCREEN_HEIGHT - movingPlatformRect2->h) {  // Bounce within screen bounds
         movingPlatformVel2->vy = -movingPlatformVel2->vy;
     }
 }
+
+void Game::updatePlatformMovement(int platformID, float frameDelta) {
+    auto& propertyManager = PropertyManager::getInstance();
+    std::shared_ptr<RectProperty> platformRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(platformID, "Rect"));
+    std::shared_ptr<VelocityProperty> platformVel = std::static_pointer_cast<VelocityProperty>(propertyManager.getProperty(platformID, "Velocity"));
+
+    if (platformVel) {
+        platformRect->x += static_cast<int>(platformVel->vx * frameDelta);
+        platformRect->y += static_cast<int>(platformVel->vy * frameDelta);
+
+        // Bound checking for horizontal and vertical movement
+        if (platformRect->x <= 0 || platformRect->x >= SCREEN_WIDTH - platformRect->w) {
+            platformVel->vx = -platformVel->vx;
+        }
+        if (platformRect->y <= 0 || platformRect->y >= SCREEN_HEIGHT - platformRect->h) {
+            platformVel->vy = -platformVel->vy;
+        }
+    }
+    else {
+        std::cerr << "Error: Platform velocity is null for platformID: " << platformID << std::endl;
+    }
+}
+
 
 // Render game objects to the screen
 void Game::render() {

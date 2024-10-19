@@ -21,8 +21,11 @@ std::mutex playersMutex;  // Mutex to ensure thread-safe access to player data
 int nextClientId = 0;  // Unique ID for each new player
 
 // Moving platform variables
-PlayerPosition platformPosition = { SCREEN_WIDTH / 3, SCREEN_HEIGHT - 300 };  // Initial position of the moving platform
-float platformVelocity = 100.0f;  // Velocity of the moving platform
+PlayerPosition platformPosition = { 150, 900 };  // Initial position of the horizontal moving platform
+PlayerPosition verticalPlatformPosition = { 300, 100 };  // Initial position of the vertical moving platform
+float platformVelocityX = 2.0f;  // Horizontal velocity
+float platformVelocityY = 2.0f;  // Vertical velocity
+
 
 // Server's own timeline for the platform
 Timeline platformTimeline(nullptr, 1.0f);  // Server-side time scaling for shared entities (e.g., moving platform)
@@ -66,18 +69,28 @@ void handleRequests(zmq::socket_t& repSocket) {
     }
 }
 
-// Function to update platform position based on velocity and timeline scaling
-void updatePlatformPosition(float deltaTime) {
-    // Use the server's timeline to adjust platform movement based on time scaling
-    platformPosition.x += static_cast<int>(platformVelocity * deltaTime / platformTimeline.getTic());
+//platformPosition.x += static_cast<int>(platformVelocity * deltaTime / platformTimeline.getTic());
+// Function to update platform positions based on velocity
+void updatePlatformPositions(float deltaTime) {
+    // Update horizontal platform position
+    platformPosition.x += static_cast<int>(platformVelocityX * deltaTime / platformTimeline.getTic());
 
-    // Reverse direction if the platform reaches screen edges
-    if (platformPosition.x <= 0 || platformPosition.x >= SCREEN_WIDTH - 50) {
-        platformVelocity = -platformVelocity;
+    // Reverse direction if the horizontal platform reaches screen edges
+    if (platformPosition.x <= 0 || platformPosition.x >= SCREEN_WIDTH - 200) {  // Assume platform width is 200
+        platformVelocityX = -platformVelocityX;
+    }
+
+    // Update vertical platform position
+    verticalPlatformPosition.y += static_cast<int>(platformVelocityY * deltaTime / platformTimeline.getTic());
+
+    // Reverse direction if the vertical platform reaches screen edges
+    if (verticalPlatformPosition.y <= 0 || verticalPlatformPosition.y >= SCREEN_HEIGHT - 50) {  // Assume platform height is 50
+        platformVelocityY = -platformVelocityY;
     }
 }
 
-// Function to broadcast player positions and platform position to all clients
+
+// Broadcast platform and player positions, include velocities
 void broadcastPositions(zmq::socket_t& pubSocket) {
     auto lastTime = std::chrono::steady_clock::now();  // Track time for delta calculation
 
@@ -89,12 +102,12 @@ void broadcastPositions(zmq::socket_t& pubSocket) {
         lastTime = currentTime;
 
         // Update platform position based on server's deltaTime
-        updatePlatformPosition(deltaTime.count());
+        updatePlatformPositions(deltaTime.count());
 
         std::lock_guard<std::mutex> lock(playersMutex);  // Lock the mutex to ensure thread safety
         if (!players.empty()) {
-            // Prepare a buffer for broadcasting player positions + platform position
-            zmq::message_t update(players.size() * (sizeof(int) + sizeof(PlayerPosition)) + sizeof(PlayerPosition));
+            // Prepare a buffer for broadcasting player positions + platform position + velocity
+            zmq::message_t update(players.size() * (sizeof(int) + sizeof(PlayerPosition)) + sizeof(PlayerPosition) + 2 * sizeof(float));  // Add velocity size
             char* buffer = static_cast<char*>(update.data());
 
             // Serialize all players' data (clientId and PlayerPosition)
@@ -109,8 +122,11 @@ void broadcastPositions(zmq::socket_t& pubSocket) {
                 buffer += sizeof(pos);
             }
 
-            // Now, serialize platform position at the end of the message
+            // Now, serialize platform position and velocity at the end of the message
             std::memcpy(buffer, &platformPosition, sizeof(platformPosition));
+            buffer += sizeof(platformPosition);
+            std::memcpy(buffer, &platformVelocityX, sizeof(platformVelocityX));  // Add velocity to the message
+            std::memcpy(buffer, &platformVelocityY, sizeof(platformVelocityY));
 
             // Send the update to all clients
             pubSocket.send(update, zmq::send_flags::none);

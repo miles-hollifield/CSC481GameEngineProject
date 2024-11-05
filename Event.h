@@ -3,6 +3,7 @@
 
 #include <string>
 #include <chrono>
+#include "Timeline.h"
 
 /**
  * @brief Enumeration of event types.
@@ -20,17 +21,17 @@ enum EventType {
  */
 class Event {
 public:
-    Event(const EventType& type, int priority);
+    Event(const EventType& type, int priority, Timeline* timeline);
     virtual ~Event() = default;
 
     EventType getType() const;
     int getPriority() const;
-    std::chrono::steady_clock::time_point getTimestamp() const;
+    int64_t getTimestamp() const;
 
 private:
     EventType type; // Type of the event (e.g., "Collision", "Death")
     int priority;     // Priority level of the event
-    std::chrono::steady_clock::time_point timestamp; // Timestamp of the event
+    int64_t timestamp; // Timestamp of the event in milliseconds
 };
 
 #endif // EVENT_H

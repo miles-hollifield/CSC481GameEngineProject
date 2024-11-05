@@ -6,6 +6,20 @@
 #include "Event.h"  // Assuming Event is defined elsewhere
 
 /**
+ * @brief Comparator for priority queue to order events based on priority and timestamp.
+ */
+struct EventCompare {
+    bool operator()(const std::shared_ptr<Event>& lhs, const std::shared_ptr<Event>& rhs) const {
+        if (lhs->getPriority() == rhs->getPriority()) {
+            // Earlier timestamps have higher priority
+            return lhs->getTimestamp() > rhs->getTimestamp();
+        }
+        // Higher priority number means higher priority
+        return lhs->getPriority() < rhs->getPriority();
+    }
+};
+
+/**
  * @brief The EventQueue class for managing a queue of events.
  */
 class EventQueue {

@@ -8,7 +8,7 @@
  */
 class CollisionEvent : public Event {
 public:
-    CollisionEvent(int object1ID, int object2ID);
+    CollisionEvent(int object1ID, int object2ID, Timeline* timeline);
 
     int getObject1ID() const;
     int getObject2ID() const;

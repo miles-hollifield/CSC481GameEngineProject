@@ -1,7 +1,7 @@
 #include "SpawnEvent.h"
 
-SpawnEvent::SpawnEvent(int objectID)
-    : Event(SPAWN, 3), objectID(objectID) {}
+SpawnEvent::SpawnEvent(int objectID, Timeline* timeline)
+    : Event(SPAWN, 3, timeline), objectID(objectID) {}
 
 int SpawnEvent::getObjectID() const {
     return objectID;

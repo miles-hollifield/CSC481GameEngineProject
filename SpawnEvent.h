@@ -8,7 +8,7 @@
  */
 class SpawnEvent : public Event {
 public:
-    SpawnEvent(int objectID);
+    SpawnEvent(int objectID, Timeline* timeline);
 
     int getObjectID() const;
 

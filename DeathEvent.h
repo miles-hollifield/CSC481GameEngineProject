@@ -8,7 +8,7 @@
  */
 class DeathEvent : public Event {
 public:
-    DeathEvent(int objectID);
+    DeathEvent(int objectID, Timeline* timeline);
 
     int getObjectID() const;
 

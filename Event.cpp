@@ -1,7 +1,9 @@
 #include "Event.h"
 
-Event::Event(const EventType& type, int priority)
-    : type(type), priority(priority), timestamp(std::chrono::steady_clock::now()) {}
+Event::Event(const EventType& type, int priority, Timeline* timeline)
+    : type(type), priority(priority) {
+    timestamp = timeline->getTime();
+}
 
 EventType Event::getType() const {
     return type;
@@ -11,6 +13,6 @@ int Event::getPriority() const {
     return priority;
 }
 
-std::chrono::steady_clock::time_point Event::getTimestamp() const {
+int64_t Event::getTimestamp() const {
     return timestamp;
 }

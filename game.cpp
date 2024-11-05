@@ -54,6 +54,7 @@ void Game::initGameObjects() {
     propertyManager.addProperty(playerID, "Physics", std::make_shared<PhysicsProperty>(10));  // Gravity
     propertyManager.addProperty(playerID, "Collision", std::make_shared<CollisionProperty>(true)); // Enable collision
     propertyManager.addProperty(playerID, "Velocity", std::make_shared<VelocityProperty>(0, 0)); // Initial velocity
+	propertyManager.addProperty(playerID, "Input", std::make_shared<InputProperty>(true, false)); // Input property
 
     // Create static platforms with different sizes and positions
     platformID = propertyManager.createObject();
@@ -140,17 +141,17 @@ void Game::handleEvents() {
     const Uint8* keystates = SDL_GetKeyboardState(NULL);
 
     if (keystates[SDL_SCANCODE_LEFT]) {
-        EventManager::getInstance().raiseEvent(std::make_shared<InputEvent>(playerID, "MoveLeft", &gameTimeline));
+        EventManager::getInstance().raiseEvent(std::make_shared<InputEvent>(playerID, MOVE_LEFT, &gameTimeline));
     }
     else if (keystates[SDL_SCANCODE_RIGHT]) {
-        EventManager::getInstance().raiseEvent(std::make_shared<InputEvent>(playerID, "MoveRight", &gameTimeline));
+        EventManager::getInstance().raiseEvent(std::make_shared<InputEvent>(playerID, MOVE_RIGHT, &gameTimeline));
     }
     else {
-        EventManager::getInstance().raiseEvent(std::make_shared<InputEvent>(playerID, "Stop", &gameTimeline));
+        EventManager::getInstance().raiseEvent(std::make_shared<InputEvent>(playerID, STOP, &gameTimeline));
     }
 
-    if (keystates[SDL_SCANCODE_UP] && (playerVel->vy < 2 && playerVel->vy > -1)) {
-        EventManager::getInstance().raiseEvent(std::make_shared<InputEvent>(playerID, "Jump", &gameTimeline));
+    if (keystates[SDL_SCANCODE_UP] && playerVel->vy == 1) {
+        EventManager::getInstance().raiseEvent(std::make_shared<InputEvent>(playerID, JUMP, &gameTimeline));
     }
 
     // Send the player's movement update to the server
@@ -189,22 +190,24 @@ void Game::handleSpawn(int objectID) {
     // Code to handle spawning
 }
 
-void Game::handleInput(int objectID, const std::string& inputAction) {
+void Game::handleInput(int objectID, const InputAction& inputAction) {
     auto& propertyManager = PropertyManager::getInstance();
     auto playerVel = std::static_pointer_cast<VelocityProperty>(propertyManager.getProperty(objectID, "Velocity"));
+	auto playerInput = std::static_pointer_cast<InputProperty>(propertyManager.getProperty(objectID, "Input"));
 
-    if (inputAction == "MoveLeft") {
+    if (inputAction == MOVE_LEFT) {
         playerVel->vx = -5;
     }
-    else if (inputAction == "MoveRight") {
+    else if (inputAction == MOVE_RIGHT) {
         playerVel->vx = 5;
     }
-    else if (inputAction == "Jump") {
-        if (playerVel->vy < 2 && playerVel->vy > -1) {
+    else if (inputAction == JUMP) {
+        if (playerInput->isJumping == false && playerVel->vy == 1) {
+            playerInput->isJumping = true;
             playerVel->vy = -15;
         }
     }
-    else if (inputAction == "Stop") {
+    else if (inputAction == STOP) {
         playerVel->vx = 0;
     }
 }
@@ -215,6 +218,7 @@ void Game::resolveCollision(int obj1ID, int obj2ID) {
     auto playerRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(obj1ID, "Rect"));
     auto playerVel = std::static_pointer_cast<VelocityProperty>(propertyManager.getProperty(obj1ID, "Velocity"));
     auto playerPhysics = std::static_pointer_cast<PhysicsProperty>(propertyManager.getProperty(obj1ID, "Physics"));
+	auto playerInput = std::static_pointer_cast<InputProperty>(propertyManager.getProperty(obj1ID, "Input"));
 
     auto platformRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(obj2ID, "Rect"));
 
@@ -222,6 +226,7 @@ void Game::resolveCollision(int obj1ID, int obj2ID) {
     if (playerRect->y + playerRect->h / 2 < platformRect->y) { // Player is above the platform
         playerVel->vy = 0;  // Stop downward velocity
         playerRect->y = platformRect->y - playerRect->h;  // Position the player on top of the platform
+		playerInput->isJumping = false;
     }
     else if (playerRect->y + playerRect->h / 2 > platformRect->y + platformRect->h) { // Player is below the platform
         playerVel->vy = playerPhysics->gravity;  // Set downward velocity to simulate falling

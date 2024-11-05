@@ -55,7 +55,7 @@ private:
     // Event handling functions
     void handleDeath(int objectID);  // Handle a death event
     void handleSpawn(int objectID);  // Handle a spawn event
-    void handleInput(int objectID, const std::string& inputType);  // Handle input events
+    void handleInput(int objectID, const InputAction& inputAction);  // Handle input events
     void resolveCollision(int obj1ID, int obj2ID);  // Resolve collision between two objects
 
     // Rendering functions

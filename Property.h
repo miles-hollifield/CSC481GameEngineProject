@@ -141,13 +141,14 @@ public:
   * @brief Construct a new InputProperty object.
   * @param hasInput Whether the object has input or not.
   */
-	InputProperty(bool hasInput) : hasInput(hasInput) {}
+	InputProperty(bool hasInput, bool isJumping) : hasInput(hasInput), isJumping(isJumping) {}
 
 	std::string getType() const override {
 		return "Input";
 	}
 
 	bool hasInput; /**< Whether the object has input or not. */
+	bool isJumping; /**< Whether the object is jumping or not. */
 
 };
 

@@ -9,14 +9,15 @@
  */
 class InputEvent : public Event {
 public:
-    InputEvent(int objectID, const std::string& inputType);
+    InputEvent(int objectID, const EventType& inputType);
 
     int getObjectID() const;
-    std::string getInputType() const;
+    EventType getInputType() const;
+	Event getEvent() const;
 
 private:
     int objectID;      // ID of the object receiving input
-    std::string inputType; // Type of input (e.g., "MoveLeft", "Jump")
+    EventType inputType; // Type of input (e.g., "MoveLeft", "Jump")
 };
 
 #endif // INPUT_EVENT_H

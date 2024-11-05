@@ -10,15 +10,6 @@
 #include "Event.h" 
 
 /**
- * @brief Enumeration of event types.
- */
-enum EventType {
-    PLAYER_MOVED,
-    PLATFORM_COLLISION,
-    // Add more event types as needed
-};
-
-/**
  * @brief The EventManager class for managing event listeners, raising, and dispatching events.
  */
 class EventManager {
@@ -38,7 +29,7 @@ public:
     // Method to dispatch all queued events to their respective handlers
     void dispatchEvents();
 
-private:
+public:
     // Private constructor and destructor to prevent instantiation
     EventManager() = default;
     ~EventManager() = default;

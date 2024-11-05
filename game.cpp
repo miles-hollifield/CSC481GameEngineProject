@@ -26,7 +26,7 @@ void Game::initGameObjects() {
     auto& eventManager = EventManager::getInstance();
 
     // Register an example event handler for player movement
-    eventManager.registerHandler(PLAYER_MOVED, [this](std::shared_ptr<Event> event) {
+    eventManager.registerHandler(INPUT, [this](std::shared_ptr<Event> event) {
         std::cout << "Player moved event triggered." << std::endl;
     });
 
@@ -34,7 +34,7 @@ void Game::initGameObjects() {
     playerID = propertyManager.createObject();
     propertyManager.addProperty(playerID, "Rect", std::make_shared<RectProperty>(100, 400, 50, 50));
     propertyManager.addProperty(playerID, "Render", std::make_shared<RenderProperty>(255, 0, 0)); // Red color for player
-    propertyManager.addProperty(playerID, "Physics", std::make_shared<PhysicsProperty>(10.0f));  // Gravity
+    propertyManager.addProperty(playerID, "Physics", std::make_shared<PhysicsProperty>(10));  // Gravity
     propertyManager.addProperty(playerID, "Collision", std::make_shared<CollisionProperty>(true)); // Enable collision
     propertyManager.addProperty(playerID, "Velocity", std::make_shared<VelocityProperty>(0, 0)); // Initial velocity
 
@@ -140,8 +140,9 @@ void Game::handleEvents() {
         }
 
         if (moved) {
+			InputEvent inputEvent(playerID, INPUT);
             // Raise a player movement event
-            EventManager::getInstance().raiseEvent(std::make_shared<Event>(PLAYER_MOVED));
+            EventManager::getInstance().raiseEvent(std::make_shared<Event>(inputEvent.getEvent()));
         }
 
         // Send the player's movement update to the server
@@ -252,7 +253,7 @@ void Game::handleCollision(int platformID) {
     // Check for intersection between player and platform
     if (SDL_HasIntersection(&playRect, &platRect)) {
         if (playerRect->y + playerRect->h / 2 < platformRect->y) { // Player is above the platform
-            playerVel->vy = 0.0f;  // Stop downward velocity
+            playerVel->vy = 0;  // Stop downward velocity
             playerRect->y = platformRect->y - playerRect->h;  // Position the player on top of the platform
         }
         // Additional checks for other collision sides
@@ -307,8 +308,8 @@ void Game::handleDeathzone() {
     if (SDL_HasIntersection(&playRect, &deathRect)) {
         playerRect->x = spawnpointRect->x;
         playerRect->y = spawnpointRect->y;
-        playerVel->vy = 0.0f;  // Reset vertical velocity
-        playerVel->vx = 0.0f;  // Reset horizontal velocity
+        playerVel->vy = 0;  // Reset vertical velocity
+        playerVel->vx = 0;  // Reset horizontal velocity
 
         // Handle screen boundary adjustments when the player respawns
         for (int i = 0; i < rightScrollCount; i++) {

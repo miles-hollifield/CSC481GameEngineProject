@@ -1,9 +1,9 @@
 #include "Event.h"
 
-Event::Event(const std::string& type, int priority)
+Event::Event(const EventType& type, int priority)
     : type(type), priority(priority), timestamp(std::chrono::steady_clock::now()) {}
 
-std::string Event::getType() const {
+EventType Event::getType() const {
     return type;
 }
 

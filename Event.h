@@ -5,19 +5,30 @@
 #include <chrono>
 
 /**
+ * @brief Enumeration of event types.
+ */
+enum EventType {
+    COLLISION,
+    SPAWN,
+    DEATH,
+    INPUT
+    // Add more event types as needed
+};
+
+/**
  * @brief Base class for all game events.
  */
 class Event {
 public:
-    Event(const std::string& type, int priority);
+    Event(const EventType& type, int priority);
     virtual ~Event() = default;
 
-    std::string getType() const;
+    EventType getType() const;
     int getPriority() const;
     std::chrono::steady_clock::time_point getTimestamp() const;
 
 private:
-    std::string type; // Type of the event (e.g., "Collision", "Death")
+    EventType type; // Type of the event (e.g., "Collision", "Death")
     int priority;     // Priority level of the event
     std::chrono::steady_clock::time_point timestamp; // Timestamp of the event
 };

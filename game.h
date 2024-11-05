@@ -5,9 +5,14 @@
 #include <unordered_map>
 #include <chrono>
 #include <mutex>
+#include <memory>
 #include "Timeline.h"  // For timeline functionality (pausing/unpausing, time scaling)
 #include "PropertyManager.h"  // For property-based game objects
 #include "ThreadManager.h"  // For multithreading platform updates
+#include "EventManager.h"  // Event management system
+#include "DeathEvent.h"  // Specific event types
+#include "SpawnEvent.h"
+#include "InputEvent.h"
 
 // Define the structure to represent the position of a player
 struct PlayerPosition {
@@ -46,6 +51,11 @@ private:
     void handleCollision(int platformID);  // Handle collisions between the player and platforms
     void handleDeathzone();  // Handle the event when the player falls into the death zone
     void handleBoundaries();  // Handle collisions with screen boundaries to prevent players from moving off-screen
+
+    // Event handling functions
+    void handleDeath(int objectID);  // Handle a death event
+    void handleSpawn(int objectID);  // Handle a spawn event
+    void handleInput(int objectID, const std::string& inputType);  // Handle input events
 
     // Rendering functions
     void render();  // Render all game objects (players, platforms) to the screen
@@ -92,6 +102,7 @@ private:
 
     // Thread management
     ThreadManager threadManager;  // Object that manages multithreading, such as platform movement threads
+    EventManager eventManager;
 
     // Camera variables
     int cameraX;  // The X-coordinate of the camera (used to implement camera scrolling)

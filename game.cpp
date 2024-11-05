@@ -3,6 +3,11 @@
 #include "ThreadManager.h"
 #include <iostream>
 #include <cstring>
+#include "EventManager.h"
+#include "DeathEvent.h"
+#include "SpawnEvent.h"
+#include "InputEvent.h"
+
 
 // Constructor for the Game class
 Game::Game(SDL_Renderer* renderer, zmq::socket_t& reqSocket, zmq::socket_t& subSocket)
@@ -18,6 +23,12 @@ Game::~Game() {}
 // Initialize game objects (characters, platforms, etc.)
 void Game::initGameObjects() {
     auto& propertyManager = PropertyManager::getInstance();
+    auto& eventManager = EventManager::getInstance();
+
+    // Register an example event handler for player movement
+    eventManager.registerHandler(PLAYER_MOVED, [this](std::shared_ptr<Event> event) {
+        std::cout << "Player moved event triggered." << std::endl;
+    });
 
     // Create player object and set its properties (position, render color, physics, etc.)
     playerID = propertyManager.createObject();
@@ -85,13 +96,9 @@ void Game::run() {
     // Main game loop that handles events, updates, and rendering
     while (!quit) {
         handleEvents();  // Handle input and events
-
         receivePlayerPositions();  // Receive other players' positions from the server
-
         update();  // Update the game state (e.g., player movement, collision detection)
-
         updateGameObjects();  // Update the position of game objects (players, platforms, etc.)
-
         render();  // Render the game objects to the screen
 
         // Cap frame rate to around 60 FPS
@@ -113,11 +120,15 @@ void Game::handleEvents() {
 
         // Handle keyboard input for player movement
         const Uint8* keystates = SDL_GetKeyboardState(NULL);
+        bool moved = false;
+
         if (keystates[SDL_SCANCODE_LEFT]) {
             playerVel->vx = -5;  // Move left
+            moved = true;
         }
         else if (keystates[SDL_SCANCODE_RIGHT]) {
             playerVel->vx = 5;  // Move right
+            moved = true;
         }
         else {
             playerVel->vx = 0;  // Stop moving horizontally
@@ -125,6 +136,12 @@ void Game::handleEvents() {
 
         if (keystates[SDL_SCANCODE_UP] && (playerVel->vy < 2 && playerVel->vy > -1)) {
             playerVel->vy = -15;  // Jump
+            moved = true;
+        }
+
+        if (moved) {
+            // Raise a player movement event
+            EventManager::getInstance().raiseEvent(std::make_shared<Event>(PLAYER_MOVED));
         }
 
         // Send the player's movement update to the server
@@ -133,6 +150,24 @@ void Game::handleEvents() {
 
     // Update camera to follow the player
     updateCamera();
+}
+
+void Game::handleDeath(int objectID) {
+    // Logic for handling death (e.g., resetting player position)
+    std::cout << "Death event triggered for object ID: " << objectID << std::endl;
+    // Respawn logic or other handling code
+}
+
+void Game::handleSpawn(int objectID) {
+    // Logic for handling spawn (e.g., setting player to a new position)
+    std::cout << "Spawn event triggered for object ID: " << objectID << std::endl;
+    // Code to handle spawning
+}
+
+void Game::handleInput(int objectID, const std::string& inputType) {
+    // Logic for handling input events
+    std::cout << "Input event (" << inputType << ") triggered for object ID: " << objectID << std::endl;
+    // Code to process the input action (e.g., movement or jump)
 }
 
 // Update the camera to follow the player's movement

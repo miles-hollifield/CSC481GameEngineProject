@@ -79,13 +79,13 @@ public:
   * @brief Construct a new PhysicsProperty object.
   * @param gravity The gravity value.
   */
-	PhysicsProperty(float gravity) : gravity(gravity) {}
+	PhysicsProperty(int gravity) : gravity(gravity) {}
 
 	std::string getType() const override {
 		return "Physics";
 	}
 
-	float gravity; /**< The gravity value. */
+	int gravity; /**< The gravity value. */
 
 };
 
@@ -120,14 +120,14 @@ public:
   * @param vx The velocity in the x-axis.
   * @param vy The velocity in the y-axis.
   */
-	VelocityProperty(float vx, float vy) : vx(vx), vy(vy) {}
+	VelocityProperty(int vx, int vy) : vx(vx), vy(vy) {}
 
 	std::string getType() const override {
 		return "Velocity";
 	}
 
-	float vx; /**< The velocity in the x-axis. */
-	float vy; /**< The velocity in the y-axis. */
+	int vx; /**< The velocity in the x-axis. */
+	int vy; /**< The velocity in the y-axis. */
 
 };
 
@@ -141,13 +141,14 @@ public:
   * @brief Construct a new InputProperty object.
   * @param hasInput Whether the object has input or not.
   */
-	InputProperty(bool hasInput) : hasInput(hasInput) {}
+	InputProperty(bool hasInput, bool isJumping) : hasInput(hasInput), isJumping(isJumping) {}
 
 	std::string getType() const override {
 		return "Input";
 	}
 
 	bool hasInput; /**< Whether the object has input or not. */
+	bool isJumping; /**< Whether the object is jumping or not. */
 
 };
 

@@ -6,11 +6,13 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <zmq.hpp>
 #include "EventQueue.h"
-#include "Event.h" 
+#include "Event.h"
+#include "nlohmann/json.hpp"
 
 /**
- * @brief The EventManager class for managing event listeners, raising, and dispatching events.
+ * @brief The EventManager class for managing event listeners, raising, dispatching, and networked events.
  */
 class EventManager {
 public:
@@ -29,7 +31,11 @@ public:
     // Method to dispatch all queued events to their respective handlers
     void dispatchEvents();
 
-public:
+    // Network methods for distributed event handling
+    void sendEvent(const std::shared_ptr<Event>& event, zmq::socket_t& socket); // Sends serialized event over a socket
+    void receiveEvent(zmq::socket_t& socket); // Receives serialized event from a socket and reconstructs it
+
+private:
     // Private constructor and destructor to prevent instantiation
     EventManager() = default;
     ~EventManager() = default;
@@ -38,11 +44,14 @@ public:
     EventManager(const EventManager&) = delete;
     EventManager& operator=(const EventManager&) = delete;
 
-    // Queue to manage events
-    EventQueue eventQueue;
+    // Serialize event to JSON
+    nlohmann::json serializeEvent(const std::shared_ptr<Event>& event);
 
-    // Map to store event handlers for each event type
-    std::unordered_map<EventType, std::vector<std::function<void(std::shared_ptr<Event>)>>> handlers;
+    // Deserialize event from JSON
+    std::shared_ptr<Event> deserializeEvent(const nlohmann::json& jsonEvent);
+
+    EventQueue eventQueue; // Queue to manage events
+    std::unordered_map<EventType, std::vector<std::function<void(std::shared_ptr<Event>)>>> handlers; // Map for event handlers
 };
 
 #endif // EVENT_MANAGER_H

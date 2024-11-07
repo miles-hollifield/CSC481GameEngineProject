@@ -10,7 +10,7 @@
 /**
  * @brief Enumeration of event types.
  */
-enum class EventType {
+enum EventType {
     COLLISION,
     SPAWN,
     DEATH,

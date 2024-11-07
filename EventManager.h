@@ -16,6 +16,9 @@
  */
 class EventManager {
 public:
+    EventManager() = default;
+    ~EventManager() = default;
+
     // Singleton instance accessor
     static EventManager& getInstance() {
         static EventManager instance;
@@ -36,10 +39,6 @@ public:
     void receiveEvent(zmq::socket_t& socket); // Receives serialized event from a socket and reconstructs it
 
 private:
-    // Private constructor and destructor to prevent instantiation
-    EventManager() = default;
-    ~EventManager() = default;
-
     // Delete copy constructor and assignment operator
     EventManager(const EventManager&) = delete;
     EventManager& operator=(const EventManager&) = delete;

@@ -31,7 +31,7 @@ class VelocityProperty;
 class Game {
 public:
     // Constructor and Destructor
-    Game(SDL_Renderer* renderer, zmq::socket_t& reqSocket, zmq::socket_t& subSocket);  // Initialize the game with the SDL renderer and ZeroMQ sockets
+    Game(SDL_Renderer* renderer, zmq::socket_t& reqSocket, zmq::socket_t& subSocket, zmq::socket_t& eventReqSocket);  // Initialize the game with the SDL renderer and ZeroMQ sockets
     ~Game();  // Clean up resources when the game is destroyed
 
     // Main game loop
@@ -68,6 +68,8 @@ private:
     void sendMovementUpdate();  // Send the player's position update to the server
     void receivePlayerPositions();  // Receive the positions of all players from the server
 
+	SpawnEventData sendSpawnEvent(int objectID, int spawnX, int spawnY);  // Send a spawn event to the server
+
     // SDL-related variables
     SDL_Renderer* renderer;  // The SDL renderer responsible for drawing game objects to the screen
     SDL_Event e;  // SDL event object used for handling input events (keyboard, mouse, etc.)
@@ -75,6 +77,7 @@ private:
     // Networking-related variables
     zmq::socket_t& reqSocket;  // ZeroMQ request socket used to send player position data to the server
     zmq::socket_t& subSocket;  // ZeroMQ subscriber socket used to receive updates from the server
+	zmq::socket_t& eventReqSocket;  // ZeroMQ request socket used to send event data to the server
 
     // Game object and property IDs
     int clientId;  // The unique ID assigned to the player's character by the server

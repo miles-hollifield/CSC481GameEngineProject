@@ -15,6 +15,10 @@ struct PlayerPosition {
     int x, y;
 };
 
+struct SpawnEventData {
+    int spawnX, spawnY;
+};
+
 // Global variables for tracking players, heartbeat times, and a mutex for thread safety
 std::unordered_map<int, PlayerPosition> players;  // Map of players and their positions
 std::unordered_map<int, std::chrono::steady_clock::time_point> lastHeartbeat; // Map to track the last heartbeat time for each client
@@ -123,24 +127,76 @@ void checkForTimeouts() {
     }
 }
 
+void handleEvents(zmq::socket_t& eventRepSocket) {
+    while (true) {
+        zmq::message_t request;
+
+        try {
+            // Receive messages from clients (blocking call)
+            zmq::recv_result_t received = eventRepSocket.recv(request, zmq::recv_flags::none);
+
+            if (received) {
+                // Extract client ID and player position from the request
+                int clientId;
+                SpawnEventData spawnData;
+                memcpy(&clientId, request.data(), sizeof(clientId));
+                memcpy(&spawnData, static_cast<char*>(request.data()) + sizeof(clientId), sizeof(spawnData));
+
+                // Lock the mutex to safely update the shared player data
+                std::lock_guard<std::mutex> lock(playersMutex);
+
+                std::cout << "Spawn event for client: " << clientId << std::endl;
+
+                // Check if spawnpoint is blocked by another player
+                for (const auto& player : players) {
+                    if (std::abs(player.second.x - spawnData.spawnX) <= 25 && std::abs(player.second.y - spawnData.spawnY) <= 25) {
+                        spawnData.spawnX += 60;  // Adjust spawnX if blocked
+                    }
+                }
+
+                SpawnEventData newSpawnData;
+                newSpawnData.spawnX = spawnData.spawnX;
+                newSpawnData.spawnY = spawnData.spawnY;
+
+                zmq::message_t reply(sizeof(clientId) + sizeof(newSpawnData));
+                memcpy(reply.data(), &clientId, sizeof(clientId));
+                memcpy(static_cast<char*>(reply.data()) + sizeof(clientId), &newSpawnData, sizeof(newSpawnData));
+                eventRepSocket.send(reply, zmq::send_flags::none);
+            }
+        }
+        catch (const zmq::error_t& e) {
+            // Handle any ZeroMQ errors that might occur during message reception
+            std::cerr << "Error receiving message: " << e.what() << std::endl;
+        }
+    }
+}
+
 int main() {
     zmq::context_t context(2);  // Initialize ZeroMQ context with two IO threads
     zmq::socket_t repSocket(context, zmq::socket_type::rep);  // REP socket for receiving client requests
     zmq::socket_t pubSocket(context, zmq::socket_type::pub);  // PUB socket for broadcasting player positions
 
+	zmq::socket_t eventRepSocket(context, zmq::socket_type::rep);  // REP socket for receiving events from the event manager
+
     // Bind sockets to respective ports for client communication
     repSocket.bind("tcp://*:5555");  // Bind REP socket to port 5555 for receiving client requests
     pubSocket.bind("tcp://*:5556");  // Bind PUB socket to port 5556 for broadcasting player positions
+
+	eventRepSocket.bind("tcp://*:5557");  // Bind REP socket to port 5557 for receiving events from the event manager
 
     // Create and start threads to handle client requests, broadcast player positions, and check for timeouts
     std::thread requestThread(handleRequests, std::ref(repSocket));
     std::thread broadcastThread(broadcastPositions, std::ref(pubSocket));
     std::thread timeoutThread(checkForTimeouts);
 
+	std::thread eventThread(handleEvents, std::ref(eventRepSocket)); // Thread to handle events from the event manager
+
     // Wait for the threads to finish (although in this case, the threads run indefinitely)
     requestThread.join();
     broadcastThread.join();
     timeoutThread.join();
+
+	eventThread.join();
 
     return 0;
 }

@@ -4,7 +4,6 @@
 #include <string>
 #include <chrono>
 #include <unordered_map>
-#include <nlohmann/json.hpp> // For JSON serialization
 #include "Timeline.h"
 
 /**
@@ -30,12 +29,6 @@ public:
     int getPriority() const;
     int64_t getTimestamp() const;
     const std::unordered_map<std::string, int>& getData() const;
-
-    // Serialize the event to JSON
-    std::string serialize() const;
-
-    // Deserialize an event from JSON
-    static Event deserialize(const std::string& jsonString);
 
 private:
     EventType type; // Type of the event (e.g., "Collision", "Death")

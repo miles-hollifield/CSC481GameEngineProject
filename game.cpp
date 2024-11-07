@@ -168,7 +168,6 @@ void Game::handleDeath(int objectID) {
     EventManager::getInstance().raiseEvent(std::make_shared<SpawnEvent>(objectID, &gameTimeline));
 }
 
-
 void Game::handleSpawn(int objectID) {
     // Logic for handling spawn (e.g., setting player to a new position)
     std::cout << "Spawn event triggered for object ID: " << objectID << std::endl;
@@ -179,9 +178,9 @@ void Game::handleSpawn(int objectID) {
     auto playerVel = std::static_pointer_cast<VelocityProperty>(propertyManager.getProperty(objectID, "Velocity"));
     auto spawnpointRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(spawnPointID, "Rect"));
 
-    SpawnEventData spawnData = sendSpawnEvent(objectID, spawnpointRect->x, spawnpointRect->y);
+	SpawnEventData spawnData = sendSpawnEvent(objectID, spawnpointRect->x, spawnpointRect->y); // Send spawn event to server
 
-    // Reset player position to spawn point
+	// Reset player position to a spawnpoint based on the server response
     playerRect->x = spawnData.spawnX;
     playerRect->y = spawnData.spawnY;
     playerVel->vy = 0;  // Reset vertical velocity
@@ -193,14 +192,14 @@ void Game::handleSpawn(int objectID) {
 }
 
 SpawnEventData Game::sendSpawnEvent(int objectID, int spawnX, int spawnY) {
-    zmq::message_t request(sizeof(clientId) + sizeof(SpawnEventData));
+	zmq::message_t request(sizeof(clientId) + sizeof(SpawnEventData)); // Request message with client ID and spawn data
 
-	SpawnEventData spawnData;
+	SpawnEventData spawnData; // Data structure to hold spawn position
 
 	spawnData.spawnX = spawnX;
 	spawnData.spawnY = spawnY;
 
-    // Copy the client ID and position into the request
+    // Copy the client ID and spawnData into the request
     memcpy(request.data(), &clientId, sizeof(clientId));
     memcpy(static_cast<char*>(request.data()) + sizeof(clientId), &spawnData, sizeof(SpawnEventData));
 
@@ -211,6 +210,7 @@ SpawnEventData Game::sendSpawnEvent(int objectID, int spawnX, int spawnY) {
     zmq::message_t reply;
     eventReqSocket.recv(reply);
 
+	// Extract the spawn data from the reply
     memcpy(&spawnData, static_cast<char*>(reply.data()) + sizeof(clientId), sizeof(spawnData));
 
     return spawnData;

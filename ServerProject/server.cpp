@@ -15,6 +15,7 @@ struct PlayerPosition {
     int x, y;
 };
 
+// Define spawn event data structure that holds spawnX and spawnY coordinates
 struct SpawnEventData {
     int spawnX, spawnY;
 };
@@ -127,16 +128,17 @@ void checkForTimeouts() {
     }
 }
 
+// Function to handle events from the event manager
 void handleEvents(zmq::socket_t& eventRepSocket) {
     while (true) {
-        zmq::message_t request;
+		zmq::message_t request; // Message to store incoming event data
 
         try {
             // Receive messages from clients (blocking call)
             zmq::recv_result_t received = eventRepSocket.recv(request, zmq::recv_flags::none);
 
             if (received) {
-                // Extract client ID and player position from the request
+                // Extract client ID and spawnData from the request
                 int clientId;
                 SpawnEventData spawnData;
                 memcpy(&clientId, request.data(), sizeof(clientId));
@@ -154,14 +156,14 @@ void handleEvents(zmq::socket_t& eventRepSocket) {
                     }
                 }
 
-                SpawnEventData newSpawnData;
-                newSpawnData.spawnX = spawnData.spawnX;
-                newSpawnData.spawnY = spawnData.spawnY;
+				SpawnEventData newSpawnData; // Create new spawn data to send back to client
+				newSpawnData.spawnX = spawnData.spawnX; // Set new spawnX
+				newSpawnData.spawnY = spawnData.spawnY; // Set new spawnY
 
-                zmq::message_t reply(sizeof(clientId) + sizeof(newSpawnData));
-                memcpy(reply.data(), &clientId, sizeof(clientId));
-                memcpy(static_cast<char*>(reply.data()) + sizeof(clientId), &newSpawnData, sizeof(newSpawnData));
-                eventRepSocket.send(reply, zmq::send_flags::none);
+				zmq::message_t reply(sizeof(clientId) + sizeof(newSpawnData)); // Create reply message
+				memcpy(reply.data(), &clientId, sizeof(clientId)); // Copy clientId to reply message
+				memcpy(static_cast<char*>(reply.data()) + sizeof(clientId), &newSpawnData, sizeof(newSpawnData)); // Copy newSpawnData to reply message
+				eventRepSocket.send(reply, zmq::send_flags::none); // Send reply message back to client
             }
         }
         catch (const zmq::error_t& e) {

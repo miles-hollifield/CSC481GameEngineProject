@@ -59,17 +59,17 @@ void Game::initGameObjects() {
     // Create static platforms with different sizes and positions
     platformID = propertyManager.createObject();
     propertyManager.addProperty(platformID, "Rect", std::make_shared<RectProperty>(50, 500, 200, 50));
-    propertyManager.addProperty(platformID, "Render", std::make_shared<RenderProperty>(128, 0, 128)); // Purple color
+    propertyManager.addProperty(platformID, "Render", std::make_shared<RenderProperty>(135, 206, 235)); // Light blue color
     propertyManager.addProperty(platformID, "Collision", std::make_shared<CollisionProperty>(true));
 
     platformID2 = propertyManager.createObject();
-    propertyManager.addProperty(platformID2, "Rect", std::make_shared<RectProperty>(250, 600, 200, 50));
-    propertyManager.addProperty(platformID2, "Render", std::make_shared<RenderProperty>(255, 255, 0)); // Yellow color
+    propertyManager.addProperty(platformID2, "Rect", std::make_shared<RectProperty>(250, 400, 200, 50));
+    propertyManager.addProperty(platformID2, "Render", std::make_shared<RenderProperty>(34, 139, 34)); // Forest green color
     propertyManager.addProperty(platformID2, "Collision", std::make_shared<CollisionProperty>(true));
 
     platformID3 = propertyManager.createObject();
-    propertyManager.addProperty(platformID3, "Rect", std::make_shared<RectProperty>(450, 700, 900, 50));
-    propertyManager.addProperty(platformID3, "Render", std::make_shared<RenderProperty>(50, 50, 50)); // Gray color
+    propertyManager.addProperty(platformID3, "Rect", std::make_shared<RectProperty>(450, 600, 700, 50));
+    propertyManager.addProperty(platformID3, "Render", std::make_shared<RenderProperty>(255, 69, 0)); // Orange red color
     propertyManager.addProperty(platformID3, "Collision", std::make_shared<CollisionProperty>(true));
 
     // Create a horizontally moving platform

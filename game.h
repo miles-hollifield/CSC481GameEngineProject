@@ -50,7 +50,6 @@ private:
     void checkCollisions();  // Detect and handle collisions with platforms, boundaries, and death zones
     void handleCollision(int platformID);  // Handle collisions between the player and platforms
     void handleDeathzone();  // Handle the event when the player falls into the death zone
-    void handleBoundaries();  // Handle collisions with screen boundaries to prevent players from moving off-screen
 
     // Event handling functions
     void handleDeath(int objectID);  // Handle a death event
@@ -85,7 +84,6 @@ private:
     int platformID, platformID2, platformID3;  // IDs for static platforms
     int movingPlatformID, movingPlatformID2;  // IDs for moving platforms
     int deathZoneID;  // ID for the death zone (used to reset player position when they "die")
-    int rightBoundaryID, leftBoundaryID;  // IDs for the right and left screen boundaries
     int spawnPointID;  // ID for the player's spawn point (where they respawn after falling into the death zone)
 
     // Player positions and rendering
@@ -98,8 +96,6 @@ private:
 
     // Variables related to moving platforms and screen boundaries
     std::mutex platformMutex;  // Mutex used for thread-safe updates to platform positions
-    int rightScrollCount;  // Counter to track how many times the camera has scrolled to the right
-    int leftScrollCount;  // Counter to track how many times the camera has scrolled to the left
 
     // Quit flag
     bool quit;  // Boolean flag that indicates whether the game should stop running (quit the game loop)

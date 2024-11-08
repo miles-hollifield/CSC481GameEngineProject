@@ -11,8 +11,8 @@
 
 
 // Constructor for the Game class
-Game::Game(SDL_Renderer* renderer, zmq::socket_t& reqSocket, zmq::socket_t& subSocket)
-    : renderer(renderer), reqSocket(reqSocket), subSocket(subSocket), quit(false), clientId(-1), cameraX(0), cameraY(0), gameTimeline(nullptr, 1.0f)
+Game::Game(SDL_Renderer* renderer, zmq::socket_t& reqSocket, zmq::socket_t& subSocket, zmq::socket_t& eventReqSocket)
+    : renderer(renderer), reqSocket(reqSocket), subSocket(subSocket), eventReqSocket(eventReqSocket), quit(false), clientId(-1), cameraX(0), cameraY(0), gameTimeline(nullptr, 1.0f)
 {
     // Initialize game objects, such as players, platforms, etc.
     initGameObjects();
@@ -90,7 +90,7 @@ void Game::initGameObjects() {
 
     // Create a spawn point for the player
     spawnPointID = propertyManager.createObject();
-    propertyManager.addProperty(spawnPointID, "Rect", std::make_shared<RectProperty>(100, 400, 50, 50));
+    propertyManager.addProperty(spawnPointID, "Rect", std::make_shared<RectProperty>(100, 450, 50, 50));
 
     // Create a death zone at the bottom of the screen
     deathZoneID = propertyManager.createObject();
@@ -165,29 +165,55 @@ void Game::handleEvents() {
 void Game::handleDeath(int objectID) {
     std::cout << "Death event triggered for object ID: " << objectID << std::endl;
 
+    EventManager::getInstance().raiseEvent(std::make_shared<SpawnEvent>(objectID, &gameTimeline));
+}
+
+void Game::handleSpawn(int objectID) {
+    // Logic for handling spawn (e.g., setting player to a new position)
+    std::cout << "Spawn event triggered for object ID: " << objectID << std::endl;
+    // Code to handle spawning
+
     auto& propertyManager = PropertyManager::getInstance();
     auto playerRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(objectID, "Rect"));
     auto playerVel = std::static_pointer_cast<VelocityProperty>(propertyManager.getProperty(objectID, "Velocity"));
     auto spawnpointRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(spawnPointID, "Rect"));
 
-    // Reset player position to spawn point
-    playerRect->x = spawnpointRect->x;
-    playerRect->y = spawnpointRect->y;
+	SpawnEventData spawnData = sendSpawnEvent(objectID, spawnpointRect->x, spawnpointRect->y); // Send spawn event to server
+
+	// Reset player position to a spawnpoint based on the server response
+    playerRect->x = spawnData.spawnX;
+    playerRect->y = spawnData.spawnY;
     playerVel->vy = 0;  // Reset vertical velocity
     playerVel->vx = 0;  // Reset horizontal velocity
 
     // Reset scroll counts if needed
     rightScrollCount = 0;
     leftScrollCount = 0;
-
-    EventManager::getInstance().raiseEvent(std::make_shared<SpawnEvent>(objectID, &gameTimeline));
 }
 
+SpawnEventData Game::sendSpawnEvent(int objectID, int spawnX, int spawnY) {
+	zmq::message_t request(sizeof(clientId) + sizeof(SpawnEventData)); // Request message with client ID and spawn data
 
-void Game::handleSpawn(int objectID) {
-    // Logic for handling spawn (e.g., setting player to a new position)
-    std::cout << "Spawn event triggered for object ID: " << objectID << std::endl;
-    // Code to handle spawning
+	SpawnEventData spawnData; // Data structure to hold spawn position
+
+	spawnData.spawnX = spawnX;
+	spawnData.spawnY = spawnY;
+
+    // Copy the client ID and spawnData into the request
+    memcpy(request.data(), &clientId, sizeof(clientId));
+    memcpy(static_cast<char*>(request.data()) + sizeof(clientId), &spawnData, sizeof(SpawnEventData));
+
+    // Send the request to the server
+    eventReqSocket.send(request, zmq::send_flags::none);
+
+    // Receive acknowledgment from the server
+    zmq::message_t reply;
+    eventReqSocket.recv(reply);
+
+	// Extract the spawn data from the reply
+    memcpy(&spawnData, static_cast<char*>(reply.data()) + sizeof(clientId), sizeof(spawnData));
+
+    return spawnData;
 }
 
 void Game::handleInput(int objectID, const InputAction& inputAction) {

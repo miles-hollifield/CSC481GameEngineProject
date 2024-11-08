@@ -3,6 +3,7 @@
 
 #include <string>
 #include <chrono>
+#include <unordered_map>
 #include "Timeline.h"
 
 /**
@@ -21,17 +22,19 @@ enum EventType {
  */
 class Event {
 public:
-    Event(const EventType& type, int priority, Timeline* timeline);
+    Event(const EventType& type, int priority, Timeline* timeline, std::unordered_map<std::string, int> data = {});
     virtual ~Event() = default;
 
     EventType getType() const;
     int getPriority() const;
     int64_t getTimestamp() const;
+    const std::unordered_map<std::string, int>& getData() const;
 
 private:
     EventType type; // Type of the event (e.g., "Collision", "Death")
-    int priority;     // Priority level of the event
+    int priority;   // Priority level of the event
     int64_t timestamp; // Timestamp of the event in milliseconds
+    std::unordered_map<std::string, int> data; // Additional event data
 };
 
 #endif // EVENT_H

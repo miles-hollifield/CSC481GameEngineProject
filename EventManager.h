@@ -6,14 +6,18 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <zmq.hpp>
 #include "EventQueue.h"
-#include "Event.h" 
+#include "Event.h"
 
 /**
- * @brief The EventManager class for managing event listeners, raising, and dispatching events.
+ * @brief The EventManager class for managing event listeners, raising, dispatching, and networked events.
  */
 class EventManager {
 public:
+    EventManager() = default;
+    ~EventManager() = default;
+
     // Singleton instance accessor
     static EventManager& getInstance() {
         static EventManager instance;
@@ -29,20 +33,13 @@ public:
     // Method to dispatch all queued events to their respective handlers
     void dispatchEvents();
 
-public:
-    // Private constructor and destructor to prevent instantiation
-    EventManager() = default;
-    ~EventManager() = default;
-
+private:
     // Delete copy constructor and assignment operator
     EventManager(const EventManager&) = delete;
     EventManager& operator=(const EventManager&) = delete;
 
-    // Queue to manage events
-    EventQueue eventQueue;
-
-    // Map to store event handlers for each event type
-    std::unordered_map<EventType, std::vector<std::function<void(std::shared_ptr<Event>)>>> handlers;
+    EventQueue eventQueue; // Queue to manage events
+    std::unordered_map<EventType, std::vector<std::function<void(std::shared_ptr<Event>)>>> handlers; // Map for event handlers
 };
 
 #endif // EVENT_MANAGER_H

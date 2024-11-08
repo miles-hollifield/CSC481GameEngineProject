@@ -3,6 +3,11 @@
 
 #include "Event.h"
 
+struct SpawnEventData {
+	int spawnX;
+	int spawnY;
+};
+
 /**
  * @brief Represents a spawn event in the game.
  */

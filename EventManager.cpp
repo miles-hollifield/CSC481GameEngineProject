@@ -1,5 +1,5 @@
 #include "EventManager.h"
-#include <iostream>  // For debug output
+#include <iostream> // For debug output
 
 // Method to register a handler for a specific event type
 void EventManager::registerHandler(EventType eventType, std::function<void(std::shared_ptr<Event>)> handler) {
@@ -15,7 +15,7 @@ void EventManager::raiseEvent(std::shared_ptr<Event> event) {
 void EventManager::dispatchEvents() {
     while (!eventQueue.isEmpty()) {
         std::shared_ptr<Event> event = eventQueue.popEvent();
-        EventType eventType = event->getType();  // Assuming Event has a method getType() returning EventType
+        EventType eventType = event->getType();
 
         // Dispatch the event to all registered handlers for its type
         if (handlers.find(eventType) != handlers.end()) {
@@ -24,7 +24,7 @@ void EventManager::dispatchEvents() {
             }
         }
         else {
-            std::cerr << "No handlers registered for event type: " << eventType << std::endl;
+            std::cerr << "No handlers registered for event type: " << static_cast<int>(eventType) << std::endl;
         }
     }
 }

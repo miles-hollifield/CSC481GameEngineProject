@@ -27,13 +27,18 @@ int main(int argc, char* args[]) {
     zmq::socket_t reqSocket(context, zmq::socket_type::req);  // For sending movement updates to the server
     zmq::socket_t subSocket(context, zmq::socket_type::sub);  // For receiving player positions from the server
 
+	zmq::socket_t eventReqSocket(context, zmq::socket_type::req);  // For sending event updates to the server
+
     // Connect to the server using ZeroMQ
     reqSocket.connect("tcp://localhost:5555");  // Connect request socket to server
     subSocket.connect("tcp://localhost:5556");  // Connect subscription socket to server
+
+	eventReqSocket.connect("tcp://localhost:5557");  // Connect event request socket to server
+
     subSocket.set(zmq::sockopt::subscribe, "");  // Subscribe to all messages on the subscription socket
 
     // Create an instance of the Game class, passing the SDL renderer and ZeroMQ sockets
-    Game game(renderer, reqSocket, subSocket);
+    Game game(renderer, reqSocket, subSocket, eventReqSocket);
 
     // Start the game loop
     game.run();

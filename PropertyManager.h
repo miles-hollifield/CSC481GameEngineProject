@@ -62,6 +62,14 @@ public:
     }
 
     /**
+     * @brief Remove a game object and all its associated properties.
+     * @param objectID The ID of the object to remove.
+     */
+    void destroyObject(int objectID) {
+        properties.erase(objectID);
+    }
+
+    /**
      * @brief Accessor for the entire properties map.
      * @return The entire properties map.
      */

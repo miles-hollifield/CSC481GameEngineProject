@@ -10,12 +10,15 @@ void init(SDL_Window*& window, SDL_Renderer*& renderer, int width, int height) {
         return;
     }
 
-    // Create the main window with the specified width and height
-    window = SDL_CreateWindow("CSC481 Team Engine", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
+    // Create the main window with the specified width and height, centered on the screen
+    window = SDL_CreateWindow("CSC481 Team Engine",
+        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+        width, height, SDL_WINDOW_SHOWN);
 
     // If window creation fails, print the SDL error
     if (window == nullptr) {
         std::cerr << "Window could not be created! SDL_Error: " << SDL_GetError() << std::endl;
+        SDL_Quit();
         return;
     }
 
@@ -25,8 +28,13 @@ void init(SDL_Window*& window, SDL_Renderer*& renderer, int width, int height) {
     // If renderer creation fails, print the SDL error
     if (renderer == nullptr) {
         std::cerr << "Renderer could not be created! SDL_Error: " << SDL_GetError() << std::endl;
+        SDL_DestroyWindow(window);
+        SDL_Quit();
         return;
     }
+
+    // Set the draw color for clearing the screen (background color)
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255); // Black background
 }
 
 // Clean up and close the SDL resources (window and renderer)

@@ -4,6 +4,9 @@
 #include <sstream>
 #include <iostream>
 
+// Define a safe zone for the score display
+constexpr int SCORE_ZONE_HEIGHT = 50;
+
 // Constructor
 Game3::Game3(SDL_Renderer* renderer, zmq::socket_t& reqSocket, zmq::socket_t& subSocket, zmq::socket_t& eventReqSocket)
     : renderer(renderer), reqSocket(reqSocket), subSocket(subSocket), eventReqSocket(eventReqSocket), quit(false), gameOver(false), score(0), gameTimeline(nullptr, INITIAL_SPEED), font(nullptr), scoreTexture(nullptr) {
@@ -47,7 +50,7 @@ void Game3::initGameObjects() {
 
     // Initialize snake
     for (int i = 0; i < INITIAL_SNAKE_LENGTH; ++i) {
-        snakeBody.push_back({ SCREEN_WIDTH / 2 / GRID_SIZE - i, SCREEN_HEIGHT / 2 / GRID_SIZE });
+        snakeBody.push_back({ SCREEN_WIDTH / 2 / GRID_SIZE - i, (SCREEN_HEIGHT / 2 + SCORE_ZONE_HEIGHT) / GRID_SIZE });
     }
     direction = { 1, 0 }; // Start moving right
 
@@ -58,12 +61,12 @@ void Game3::initGameObjects() {
 // Place food at a random position
 void Game3::placeFood() {
     food.x = rand() % (SCREEN_WIDTH / GRID_SIZE);
-    food.y = rand() % (SCREEN_HEIGHT / GRID_SIZE);
+    food.y = rand() % ((SCREEN_HEIGHT - SCORE_ZONE_HEIGHT) / GRID_SIZE) + (SCORE_ZONE_HEIGHT / GRID_SIZE); // Exclude score zone
 
     // Ensure food is not placed on the snake
     while (checkCollision(food)) {
         food.x = rand() % (SCREEN_WIDTH / GRID_SIZE);
-        food.y = rand() % (SCREEN_HEIGHT / GRID_SIZE);
+        food.y = rand() % ((SCREEN_HEIGHT - SCORE_ZONE_HEIGHT) / GRID_SIZE) + (SCORE_ZONE_HEIGHT / GRID_SIZE); // Exclude score zone
     }
 }
 
@@ -136,7 +139,7 @@ void Game3::updateGameObjects() {
     SDL_Point newHead = { snakeBody.front().x + direction.x, snakeBody.front().y + direction.y };
 
     // Check for collisions with walls or itself
-    if (newHead.x < 0 || newHead.y < 0 || newHead.x >= SCREEN_WIDTH / GRID_SIZE || newHead.y >= SCREEN_HEIGHT / GRID_SIZE || checkCollision(newHead)) {
+    if (newHead.x < 0 || newHead.y < SCORE_ZONE_HEIGHT / GRID_SIZE || newHead.x >= SCREEN_WIDTH / GRID_SIZE || newHead.y >= SCREEN_HEIGHT / GRID_SIZE || checkCollision(newHead)) {
         gameOver = true;
         return;
     }

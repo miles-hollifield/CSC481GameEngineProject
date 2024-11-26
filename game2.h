@@ -99,6 +99,10 @@ private:
      */
     void handleDeath(int objectID);
 
+    void resetGame();
+
+    void restartGame();
+
     // Rendering functions
     /**
      * @brief Renders all game objects, including the player, aliens, and projectiles.
@@ -149,7 +153,8 @@ private:
     std::vector<int> projectileIDs;   ///< IDs of projectile objects.
 
     // Game state
-    bool quit;                        ///< Flag to indicate if the game loop should exit.
+    bool quit;       // Controls whether the game exits
+    bool gameOver;   // Tracks whether the game is over and needs a reset
 
     // Timeline for managing events
     Timeline gameTimeline;            ///< Timeline for event timestamps.

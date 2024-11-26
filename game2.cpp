@@ -61,10 +61,21 @@ void Game2::initGameObjects() {
 // Main game loop
 void Game2::run() {
     while (!quit) {
-        handleEvents();        // Handle player input
-        update();              // Update game objects
-        render();              // Render objects to the screen
-        SDL_Delay(16);         // Cap frame rate to ~60 FPS
+        try {
+            if (gameOver) {
+                resetGame();
+                gameOver = false; // Reset the flag after the game has been reset
+            }
+
+            handleEvents();        // Handle player input
+            update();              // Update game objects
+            render();              // Render objects to the screen
+            SDL_Delay(16);         // Cap frame rate to ~60 FPS
+        }
+        catch (const std::exception& ex) {
+            std::cerr << "Exception in main loop: " << ex.what() << std::endl;
+            quit = true; // Exit gracefully on exception
+        }
     }
 }
 
@@ -253,9 +264,15 @@ void Game2::updateGameObjects() {
 
         // Check for collision with player
         if (SDL_HasIntersection(&projSDL, &playerSDL)) {
+            // Destroy player and projectile
             EventManager::getInstance().raiseEvent(std::make_shared<DeathEvent>(playerID, &gameTimeline));
+            propertyManager.destroyObject(playerID);
             propertyManager.destroyObject(*it);
             it = alienProjectileIDs.erase(it);
+
+            // Mark the game as over
+            std::cout << "Player has been destroyed! Resetting game..." << std::endl;
+            gameOver = true; // Set the game over flag
         }
         else if (projRect->y > SCREEN_HEIGHT) { // Remove projectile if off-screen
             propertyManager.destroyObject(*it);
@@ -266,6 +283,8 @@ void Game2::updateGameObjects() {
         }
     }
 }
+
+
 
 // Render all game objects
 void Game2::render() {
@@ -301,11 +320,19 @@ void Game2::renderAlienProjectile(int alienProjID) {
 // Render player
 void Game2::renderPlayer(int playerID) {
     auto& propertyManager = PropertyManager::getInstance();
+
+    if (!propertyManager.hasObject(playerID)) {
+        // If the player object doesn’t exist, return silently
+        return;
+    }
+
     auto playerRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(playerID, "Rect"));
     SDL_Rect playerSDL = { playerRect->x, playerRect->y, playerRect->w, playerRect->h };
     SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
     SDL_RenderFillRect(renderer, &playerSDL);
 }
+
+
 
 // Render alien
 void Game2::renderAlien(int alienID) {
@@ -333,5 +360,53 @@ void Game2::handleSpawn(int objectID) {
 // Handle death events
 void Game2::handleDeath(int objectID) {
     std::cout << "Death event triggered for object ID: " << objectID << std::endl;
+
+    if (objectID == playerID) {
+        std::cout << "Player has been hit. Preparing to reset the game..." << std::endl;
+
+        // Mark the game as over
+        gameOver = true;
+
+        // Avoid accessing invalid state
+        return;
+    }
+
+    // Destroy the object as usual
     PropertyManager::getInstance().destroyObject(objectID);
+}
+
+void Game2::resetGame() {
+    auto& propertyManager = PropertyManager::getInstance();
+
+    // Destroy all existing objects
+    for (int projID : projectileIDs) {
+        propertyManager.destroyObject(projID);
+    }
+    projectileIDs.clear();
+
+    for (int alienProjID : alienProjectileIDs) {
+        propertyManager.destroyObject(alienProjID);
+    }
+    alienProjectileIDs.clear();
+
+    for (int alienID : alienIDs) {
+        propertyManager.destroyObject(alienID);
+    }
+    alienIDs.clear();
+
+    if (propertyManager.hasObject(playerID)) {
+        propertyManager.destroyObject(playerID);
+    }
+
+    // Reinitialize the game objects
+    initGameObjects();
+
+    // Debug message to indicate reset
+    std::cout << "Game state has been reset." << std::endl;
+
+    // Ensure the `quit` flag is not triggered during reset
+    quit = false;
+
+    // Ensure gameOver is cleared in case it's reset directly
+    gameOver = false;
 }

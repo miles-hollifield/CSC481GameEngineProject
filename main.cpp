@@ -1,5 +1,5 @@
 #include "main.h"
-#include "game2.h" // Use game2.h for the Space Invaders implementation
+#include "game3.h" // Use game2.h for the Space Invaders implementation
 #include <zmq.hpp>
 #include <iostream>
 
@@ -33,7 +33,7 @@ int main(int argc, char* args[]) {
     subSocket.set(zmq::sockopt::subscribe, "");  // Subscribe to all messages on the subscription socket
 
     // Create an instance of the Game2 class, passing the SDL renderer and ZeroMQ sockets
-    Game2 game(renderer, reqSocket, subSocket, eventReqSocket);
+    Game3 game(renderer, reqSocket, subSocket, eventReqSocket);
 
     // Start the game loop
     game.run();

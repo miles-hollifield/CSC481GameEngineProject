@@ -207,7 +207,9 @@ void Game2::updateGameObjects() {
     static int alienDirection = 1; // 1 for right, -1 for left
 
     ++alienMoveTimer;
-    if (alienMoveTimer >= 30) { // Move aliens every 30 frames
+    float tic = gameTimeline.getTic(); // Get current tic rate
+
+    if (alienMoveTimer >= static_cast<int>(30 / tic)) { // Adjust timer by timeline tic rate
         alienMoveTimer = 0;
 
         bool changeDirection = false;
@@ -233,7 +235,7 @@ void Game2::updateGameObjects() {
     static int alienShootTimer = 0;
     ++alienShootTimer;
 
-    if (alienShootTimer >= 100) { // Aliens shoot every 100 frames
+    if (alienShootTimer >= static_cast<int>(100 / tic)) { // Adjust shooting timer by timeline tic rate
         alienShootTimer = 0;
 
         if (!alienIDs.empty()) {
@@ -282,8 +284,18 @@ void Game2::updateGameObjects() {
             ++it;
         }
     }
-}
 
+    // Check if all aliens are destroyed
+    if (alienIDs.empty()) {
+        std::cout << "All aliens destroyed! Moving to the next level..." << std::endl;
+
+        // Increment the tic rate for the next level
+        gameTimeline.changeTic(gameTimeline.getTic() + 0.5f);
+
+        // Reset the game state
+        resetGame();
+    }
+}
 
 
 // Render all game objects
@@ -398,15 +410,31 @@ void Game2::resetGame() {
         propertyManager.destroyObject(playerID);
     }
 
+    // Check if reset is due to player death
+    if (gameOver) {
+        // Reset level and timeline to default values
+        level = 1;
+        gameTimeline.changeTic(1.0f); // Reset tic to normal speed
+        std::cout << "Player hit! Game reset to level 1 with default speed." << std::endl;
+
+        // Ensure `gameOver` is reset before reinitialization
+        gameOver = false;
+    }
+    else {
+        // Increment the level if all aliens are destroyed
+        ++level;
+        float newTic = 1.0f + (level - 1) * 0.3f; // Increase speed by 30% per level
+        gameTimeline.changeTic(newTic);
+        std::cout << "All aliens destroyed! Moving to level " << level
+            << " with tic rate: " << newTic << "." << std::endl;
+    }
+
     // Reinitialize the game objects
     initGameObjects();
 
-    // Debug message to indicate reset
-    std::cout << "Game state has been reset." << std::endl;
+    // Debug message to confirm reset
+    std::cout << "Game objects reinitialized for level " << level << "." << std::endl;
 
     // Ensure the `quit` flag is not triggered during reset
     quit = false;
-
-    // Ensure gameOver is cleared in case it's reset directly
-    gameOver = false;
 }

@@ -101,8 +101,6 @@ private:
 
     void resetGame();
 
-    void restartGame();
-
     // Rendering functions
     /**
      * @brief Renders all game objects, including the player, aliens, and projectiles.
@@ -155,6 +153,8 @@ private:
     // Game state
     bool quit;       // Controls whether the game exits
     bool gameOver;   // Tracks whether the game is over and needs a reset
+
+    int level = 1;
 
     // Timeline for managing events
     Timeline gameTimeline;            ///< Timeline for event timestamps.

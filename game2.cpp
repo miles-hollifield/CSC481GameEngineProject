@@ -11,7 +11,8 @@
 
 // Constructor
 Game2::Game2(SDL_Renderer* renderer, zmq::socket_t& reqSocket, zmq::socket_t& subSocket, zmq::socket_t& eventReqSocket)
-    : renderer(renderer), reqSocket(reqSocket), subSocket(subSocket), eventReqSocket(eventReqSocket), quit(false), gameTimeline(nullptr, 1.0f), font(nullptr), levelTexture(nullptr) {
+    : renderer(renderer), reqSocket(reqSocket), subSocket(subSocket), eventReqSocket(eventReqSocket), quit(false),
+    gameTimeline(nullptr, 1.0f), font(nullptr), levelTexture(nullptr), clientId(-1) {
     // Initialize SDL_ttf
     if (TTF_Init() == -1) {
         std::cerr << "TTF_Init error: " << TTF_GetError() << std::endl;
@@ -19,8 +20,8 @@ Game2::Game2(SDL_Renderer* renderer, zmq::socket_t& reqSocket, zmq::socket_t& su
         return;
     }
 
-    // Load the font (use your font path here)
-    font = TTF_OpenFont("./fonts/PixelPowerline-9xOK.ttf", 24); // Font size 24
+    // Load the font
+    font = TTF_OpenFont("./fonts/PixelPowerline-9xOK.ttf", 24);
     if (!font) {
         std::cerr << "Failed to load font: " << TTF_GetError() << std::endl;
         quit = true;
@@ -59,19 +60,20 @@ void Game2::initGameObjects() {
 
     // Create the player object
     playerID = propertyManager.createObject();
-    propertyManager.addProperty(playerID, "Rect", std::make_shared<RectProperty>(SCREEN_WIDTH / 2 - PLAYER_WIDTH / 2, SCREEN_HEIGHT - 60, PLAYER_WIDTH, PLAYER_HEIGHT));
+    propertyManager.addProperty(playerID, "Rect", std::make_shared<RectProperty>(
+        SCREEN_WIDTH / 2 - PLAYER_WIDTH / 2, SCREEN_HEIGHT - 60, PLAYER_WIDTH, PLAYER_HEIGHT));
     propertyManager.addProperty(playerID, "Render", std::make_shared<RenderProperty>(0, 255, 0)); // Green player
     propertyManager.addProperty(playerID, "Velocity", std::make_shared<VelocityProperty>(0, 0));
 
     // Create aliens in a grid
     int numColumns = 10;
     int numRows = 5;
-    int totalAlienWidth = numColumns * (ALIEN_WIDTH + 10) - 10; // Total width of the alien grid (spacing included)
-    int startX = (SCREEN_WIDTH - totalAlienWidth) / 2;          // Center horizontally
-    int startY = 50;                                           // Starting Y position
+    int totalAlienWidth = numColumns * (ALIEN_WIDTH + 10) - 10; // Total width with spacing
+    int startX = (SCREEN_WIDTH - totalAlienWidth) / 2;
+    int startY = 50;
 
-    for (int i = 0; i < numRows; ++i) {  // Rows
-        for (int j = 0; j < numColumns; ++j) {  // Columns
+    for (int i = 0; i < numRows; ++i) {
+        for (int j = 0; j < numColumns; ++j) {
             int alienID = propertyManager.createObject();
             propertyManager.addProperty(alienID, "Rect", std::make_shared<RectProperty>(
                 startX + j * (ALIEN_WIDTH + 10), startY + i * (ALIEN_HEIGHT + 10), ALIEN_WIDTH, ALIEN_HEIGHT));
@@ -87,24 +89,25 @@ void Game2::run() {
         try {
             if (gameOver) {
                 resetGame();
-                gameOver = false; // Reset the flag after the game has been reset
+                gameOver = false;
             }
 
-            handleEvents();        // Handle player input
-            update();              // Update game objects
-            render();              // Render objects to the screen
-            SDL_Delay(16);         // Cap frame rate to ~60 FPS
+            handleEvents();
+            receiveServerUpdates(); // Integrate server updates
+            update();
+            render();
+            SDL_Delay(16); // ~60 FPS
         }
         catch (const std::exception& ex) {
             std::cerr << "Exception in main loop: " << ex.what() << std::endl;
-            quit = true; // Exit gracefully on exception
+            quit = true;
         }
     }
 }
 
 // Handle events
 void Game2::handleEvents() {
-    static bool isSpacePressed = false; // Tracks whether the spacebar is currently pressed
+    static bool isSpacePressed = false;
 
     while (SDL_PollEvent(&e) != 0) {
         if (e.type == SDL_QUIT) {
@@ -112,45 +115,89 @@ void Game2::handleEvents() {
         }
     }
 
-    // Handle keyboard input
     const Uint8* keystates = SDL_GetKeyboardState(nullptr);
     auto& propertyManager = PropertyManager::getInstance();
     auto playerVel = std::static_pointer_cast<VelocityProperty>(propertyManager.getProperty(playerID, "Velocity"));
 
     if (keystates[SDL_SCANCODE_LEFT]) {
-        playerVel->vx = -5; // Move left
+        playerVel->vx = -5;
     }
     else if (keystates[SDL_SCANCODE_RIGHT]) {
-        playerVel->vx = 5; // Move right
+        playerVel->vx = 5;
     }
     else {
-        playerVel->vx = 0; // Stop movement
+        playerVel->vx = 0;
     }
 
-    // Handle spacebar for firing
-    if (keystates[SDL_SCANCODE_SPACE]) {
-        if (!isSpacePressed) {
-            // Spacebar was just pressed, fire a projectile
-            int projectileID = propertyManager.createObject();
-            auto playerRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(playerID, "Rect"));
-            propertyManager.addProperty(projectileID, "Rect", std::make_shared<RectProperty>(
-                playerRect->x + PLAYER_WIDTH / 2 - PROJECTILE_WIDTH / 2,
-                playerRect->y,
-                PROJECTILE_WIDTH,
-                PROJECTILE_HEIGHT));
-            propertyManager.addProperty(projectileID, "Render", std::make_shared<RenderProperty>(255, 255, 255)); // White projectile
-            propertyManager.addProperty(projectileID, "Velocity", std::make_shared<VelocityProperty>(0, -10)); // Move up
-            projectileIDs.push_back(projectileID);
-
-            isSpacePressed = true; // Mark spacebar as pressed
-        }
+    if (keystates[SDL_SCANCODE_SPACE] && !isSpacePressed) {
+        fireProjectile();
+        isSpacePressed = true;
     }
-    else {
-        // Spacebar is not pressed
+    else if (!keystates[SDL_SCANCODE_SPACE]) {
         isSpacePressed = false;
+    }
+
+    sendPlayerUpdate(); // Send player position to server
+}
+
+// Send player position to the server
+void Game2::sendPlayerUpdate() {
+    zmq::message_t request(sizeof(clientId) + sizeof(PlayerPosition));
+
+    PlayerPosition pos;
+    auto& propertyManager = PropertyManager::getInstance();
+    auto playerRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(playerID, "Rect"));
+
+    pos.x = playerRect->x;
+    pos.y = playerRect->y;
+
+    memcpy(request.data(), &clientId, sizeof(clientId));
+    memcpy(static_cast<char*>(request.data()) + sizeof(clientId), &pos, sizeof(pos));
+
+    reqSocket.send(request, zmq::send_flags::none);
+
+    zmq::message_t reply;
+    reqSocket.recv(reply);
+
+    if (clientId == -1) {
+        memcpy(&clientId, reply.data(), sizeof(clientId));
+        std::cout << "Assigned client ID: " << clientId << std::endl;
     }
 }
 
+// Receive updates from the server
+void Game2::receiveServerUpdates() {
+    zmq::message_t update;
+    if (subSocket.recv(update, zmq::recv_flags::dontwait)) {
+        char* buffer = static_cast<char*>(update.data());
+        while (buffer < static_cast<char*>(update.data()) + update.size()) {
+            int id;
+            PlayerPosition pos;
+            memcpy(&id, buffer, sizeof(id));
+            buffer += sizeof(id);
+            memcpy(&pos, buffer, sizeof(pos));
+            buffer += sizeof(pos);
+
+            allPlayers[id] = pos; // Update player positions
+        }
+    }
+}
+
+// Fire a projectile
+void Game2::fireProjectile() {
+    auto& propertyManager = PropertyManager::getInstance();
+    auto playerRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(playerID, "Rect"));
+
+    int projectileID = propertyManager.createObject();
+    propertyManager.addProperty(projectileID, "Rect", std::make_shared<RectProperty>(
+        playerRect->x + PLAYER_WIDTH / 2 - PROJECTILE_WIDTH / 2,
+        playerRect->y,
+        PROJECTILE_WIDTH,
+        PROJECTILE_HEIGHT));
+    propertyManager.addProperty(projectileID, "Render", std::make_shared<RenderProperty>(255, 255, 255));
+    propertyManager.addProperty(projectileID, "Velocity", std::make_shared<VelocityProperty>(0, -10));
+    projectileIDs.push_back(projectileID);
+}
 
 // Update game state
 void Game2::update() {

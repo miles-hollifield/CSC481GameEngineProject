@@ -1,5 +1,4 @@
 #include "main.h"
-#include "game3.h" // Use game2.h for the Space Invaders implementation
 #include <zmq.hpp>
 #include <iostream>
 

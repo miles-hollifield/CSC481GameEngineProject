@@ -1,5 +1,3 @@
-#pragma once
-
 #include <SDL2/SDL.h>
 #include <zmq.hpp>
 #include <vector>
@@ -33,8 +31,13 @@
 class RectProperty;
 class VelocityProperty;
 
+// Define the structure to represent the position of a player
+struct PlayerPosition {
+    int x, y;  // X and Y coordinates of the player
+};
+
 /**
- * @brief The Game2 class implements the core Space Invaders game logic.
+ * @brief The Game2 class implements the core Space Invaders game logic with client-server networking.
  */
 class Game2 {
 public:
@@ -88,29 +91,32 @@ private:
     void handleSpawn(int objectID);
 
     /**
-     * @brief Resolves collisions between game objects.
-     * @param obj1ID ID of the first object in the collision.
-     * @param obj2ID ID of the second object in the collision.
-     */
-    void resolveCollision(int obj1ID, int obj2ID);
-
-    /**
      * @brief Handles a death event for objects like projectiles or aliens.
      * @param objectID ID of the object triggering the death event.
      */
     void handleDeath(int objectID);
 
+    /**
+     * @brief Resets the game state, including reinitializing all objects and resetting the timeline.
+     */
     void resetGame();
 
-    void renderLevelText();
+    // Networking functions
+    /**
+     * @brief Sends the player's position to the server.
+     */
+    void sendPlayerUpdate();
+
+    /**
+     * @brief Receives updates from the server, including other players' positions.
+     */
+    void receiveServerUpdates();
 
     // Rendering functions
     /**
      * @brief Renders all game objects, including the player, aliens, and projectiles.
      */
     void render();
-
-    void renderAlienProjectile(int alienProjID);
 
     /**
      * @brief Renders the player character.
@@ -130,16 +136,22 @@ private:
      */
     void renderProjectile(int projectileID);
 
-    // Networking functions
     /**
-     * @brief Sends the player's position to the server.
+     * @brief Renders an alien projectile object.
+     * @param alienProjID ID of the alien projectile to render.
      */
-    void sendMovementUpdate();
+    void renderAlienProjectile(int alienProjID);
 
     /**
-     * @brief Receives updates from the server.
+     * @brief Renders the current level text on the screen.
      */
-    void receivePlayerPositions();
+    void renderLevelText();
+
+    // Utility functions
+    /**
+     * @brief Fires a projectile from the player's position.
+     */
+    void fireProjectile();
 
     // SDL and networking variables
     SDL_Renderer* renderer;           ///< SDL renderer for drawing the game.
@@ -152,21 +164,20 @@ private:
     int playerID;                     ///< ID of the player object.
     std::vector<int> alienIDs;        ///< IDs of alien objects.
     std::vector<int> projectileIDs;   ///< IDs of projectile objects.
+    std::vector<int> alienProjectileIDs; ///< IDs of alien projectile objects.
+    std::unordered_map<int, PlayerPosition> allPlayers; ///< Map of all players' positions.
 
     // Game state
-    bool quit;       // Controls whether the game exits
-    bool gameOver;   // Tracks whether the game is over and needs a reset
+    bool quit;                        ///< Whether the game is running.
+    bool gameOver;                    ///< Whether the game is over.
+    int clientId;                     ///< Unique client ID assigned by the server.
+    int level = 1;                    ///< Current game level.
 
-    // Other member variables
-    TTF_Font* font; // Font for rendering level text
-    SDL_Texture* levelTexture; // Texture for the level text
-    SDL_Rect levelRect; // Rectangle for the level text position
-
-    int level = 1;
+    // Text rendering
+    TTF_Font* font;                   ///< Font for rendering text.
+    SDL_Texture* levelTexture;        ///< Texture for the level text.
+    SDL_Rect levelRect;               ///< Rectangle for the level text position.
 
     // Timeline for managing events
-    Timeline gameTimeline;            ///< Timeline for event timestamps.
-
-    std::vector<int> alienProjectileIDs; // List to track alien projectiles
-
+    Timeline gameTimeline;            ///< Timeline for managing game speed.
 };

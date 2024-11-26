@@ -15,6 +15,7 @@
 #include "SpawnEvent.h"
 #include "InputEvent.h"
 #include "CollisionEvent.h"
+#include <SDL2/SDL_ttf.h>
 
 // Constants for screen dimensions
 #define SCREEN_WIDTH 800
@@ -101,6 +102,8 @@ private:
 
     void resetGame();
 
+    void renderLevelText();
+
     // Rendering functions
     /**
      * @brief Renders all game objects, including the player, aliens, and projectiles.
@@ -153,6 +156,11 @@ private:
     // Game state
     bool quit;       // Controls whether the game exits
     bool gameOver;   // Tracks whether the game is over and needs a reset
+
+    // Other member variables
+    TTF_Font* font; // Font for rendering level text
+    SDL_Texture* levelTexture; // Texture for the level text
+    SDL_Rect levelRect; // Rectangle for the level text position
 
     int level = 1;
 

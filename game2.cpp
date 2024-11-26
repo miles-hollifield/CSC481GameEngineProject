@@ -11,12 +11,35 @@
 
 // Constructor
 Game2::Game2(SDL_Renderer* renderer, zmq::socket_t& reqSocket, zmq::socket_t& subSocket, zmq::socket_t& eventReqSocket)
-    : renderer(renderer), reqSocket(reqSocket), subSocket(subSocket), eventReqSocket(eventReqSocket), quit(false), gameTimeline(nullptr, 1.0f) {
+    : renderer(renderer), reqSocket(reqSocket), subSocket(subSocket), eventReqSocket(eventReqSocket), quit(false), gameTimeline(nullptr, 1.0f), font(nullptr), levelTexture(nullptr) {
+    // Initialize SDL_ttf
+    if (TTF_Init() == -1) {
+        std::cerr << "TTF_Init error: " << TTF_GetError() << std::endl;
+        quit = true;
+        return;
+    }
+
+    // Load the font (use your font path here)
+    font = TTF_OpenFont("./fonts/PixelPowerline-9xOK.ttf", 24); // Font size 24
+    if (!font) {
+        std::cerr << "Failed to load font: " << TTF_GetError() << std::endl;
+        quit = true;
+        return;
+    }
+
     initGameObjects();
 }
 
 // Destructor
-Game2::~Game2() {}
+Game2::~Game2() {
+    if (font) {
+        TTF_CloseFont(font);
+    }
+    if (levelTexture) {
+        SDL_DestroyTexture(levelTexture);
+    }
+    TTF_Quit();
+}
 
 // Initialize game objects
 void Game2::initGameObjects() {
@@ -317,8 +340,11 @@ void Game2::render() {
         renderAlienProjectile(alienProjID);
     }
 
+    renderLevelText(); // Render the level text
+
     SDL_RenderPresent(renderer);
 }
+
 
 void Game2::renderAlienProjectile(int alienProjID) {
     auto& propertyManager = PropertyManager::getInstance();
@@ -438,3 +464,37 @@ void Game2::resetGame() {
     // Ensure the `quit` flag is not triggered during reset
     quit = false;
 }
+
+void Game2::renderLevelText() {
+    // Free existing texture if it exists
+    if (levelTexture) {
+        SDL_DestroyTexture(levelTexture);
+        levelTexture = nullptr;
+    }
+
+    // Create a surface with the level text
+    std::string levelText = "Level: " + std::to_string(level);
+    SDL_Color white = { 255, 255, 255, 255 };
+    SDL_Surface* textSurface = TTF_RenderText_Solid(font, levelText.c_str(), white);
+    if (!textSurface) {
+        std::cerr << "TTF_RenderText_Solid error: " << TTF_GetError() << std::endl;
+        return;
+    }
+
+    // Create a texture from the surface
+    levelTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+    SDL_FreeSurface(textSurface);
+    if (!levelTexture) {
+        std::cerr << "SDL_CreateTextureFromSurface error: " << SDL_GetError() << std::endl;
+        return;
+    }
+
+    // Set the position and size of the text
+    levelRect.x = 10; // Top-left corner
+    levelRect.y = 10;
+    SDL_QueryTexture(levelTexture, nullptr, nullptr, &levelRect.w, &levelRect.h);
+
+    // Render the text
+    SDL_RenderCopy(renderer, levelTexture, nullptr, &levelRect);
+}
+

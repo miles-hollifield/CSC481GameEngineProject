@@ -222,32 +222,60 @@ void Game3::render() {
 
 // Render score text
 void Game3::renderScoreText() {
+    // Destroy existing textures to avoid memory leaks
     if (scoreTexture) {
         SDL_DestroyTexture(scoreTexture);
         scoreTexture = nullptr;
     }
+    if (speedTexture) {
+        SDL_DestroyTexture(speedTexture);
+        speedTexture = nullptr;
+    }
 
-    std::stringstream ss;
-    ss << "Score: " << score;
-    std::string scoreStr = ss.str();
+    // Prepare the score text
+    std::stringstream scoreStream;
+    scoreStream << "Score: " << score;
+    std::string scoreStr = scoreStream.str();
 
     SDL_Color white = { 255, 255, 255, 255 };
-    SDL_Surface* textSurface = TTF_RenderText_Solid(font, scoreStr.c_str(), white);
-    if (!textSurface) {
+    SDL_Surface* scoreSurface = TTF_RenderText_Solid(font, scoreStr.c_str(), white);
+    if (!scoreSurface) {
         std::cerr << "TTF_RenderText_Solid error: " << TTF_GetError() << std::endl;
         return;
     }
-
-    scoreTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
-    SDL_FreeSurface(textSurface);
-
+    scoreTexture = SDL_CreateTextureFromSurface(renderer, scoreSurface);
+    SDL_FreeSurface(scoreSurface);
     if (!scoreTexture) {
         std::cerr << "SDL_CreateTextureFromSurface error: " << SDL_GetError() << std::endl;
         return;
     }
 
+    // Render the score text
     scoreRect.x = 10;
     scoreRect.y = 10;
     SDL_QueryTexture(scoreTexture, nullptr, nullptr, &scoreRect.w, &scoreRect.h);
     SDL_RenderCopy(renderer, scoreTexture, nullptr, &scoreRect);
+
+    // Prepare the speed text
+    std::stringstream speedStream;
+    speedStream << "Speed: " << std::fixed << std::setprecision(2) << gameTimeline.getTic();
+    std::string speedStr = speedStream.str();
+
+    SDL_Surface* speedSurface = TTF_RenderText_Solid(font, speedStr.c_str(), white);
+    if (!speedSurface) {
+        std::cerr << "TTF_RenderText_Solid error: " << TTF_GetError() << std::endl;
+        return;
+    }
+    speedTexture = SDL_CreateTextureFromSurface(renderer, speedSurface);
+    SDL_FreeSurface(speedSurface);
+    if (!speedTexture) {
+        std::cerr << "SDL_CreateTextureFromSurface error: " << SDL_GetError() << std::endl;
+        return;
+    }
+
+    // Render the speed text next to the score
+    speedRect.x = scoreRect.x + scoreRect.w + 20; // Position it to the right of the score
+    speedRect.y = scoreRect.y;
+    SDL_QueryTexture(speedTexture, nullptr, nullptr, &speedRect.w, &speedRect.h);
+    SDL_RenderCopy(renderer, speedTexture, nullptr, &speedRect);
 }

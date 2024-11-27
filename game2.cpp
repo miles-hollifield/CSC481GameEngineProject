@@ -496,7 +496,7 @@ void Game2::resetGame() {
     else {
         // Increment the level if all aliens are destroyed
         ++level;
-        float newTic = 1.0f + (level - 1) * 0.3f; // Increase speed by 30% per level
+        float newTic = 1.0f + (level - 1) * 0.5f; // Increase speed by 50% per level
         gameTimeline.changeTic(newTic);
         std::cout << "All aliens destroyed! Moving to level " << level
             << " with tic rate: " << newTic << "." << std::endl;
@@ -513,35 +513,60 @@ void Game2::resetGame() {
 }
 
 void Game2::renderLevelText() {
-    // Free existing texture if it exists
+    // Destroy existing textures to avoid memory leaks
     if (levelTexture) {
         SDL_DestroyTexture(levelTexture);
         levelTexture = nullptr;
     }
+    if (speedTexture) {
+        SDL_DestroyTexture(speedTexture);
+        speedTexture = nullptr;
+    }
 
-    // Create a surface with the level text
-    std::string levelText = "Level: " + std::to_string(level);
+    // Prepare the level text
+    std::stringstream levelStream;
+    levelStream << "Level: " << level;
+    std::string levelStr = levelStream.str();
+
     SDL_Color white = { 255, 255, 255, 255 };
-    SDL_Surface* textSurface = TTF_RenderText_Solid(font, levelText.c_str(), white);
-    if (!textSurface) {
+    SDL_Surface* levelSurface = TTF_RenderText_Solid(font, levelStr.c_str(), white);
+    if (!levelSurface) {
         std::cerr << "TTF_RenderText_Solid error: " << TTF_GetError() << std::endl;
         return;
     }
-
-    // Create a texture from the surface
-    levelTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
-    SDL_FreeSurface(textSurface);
+    levelTexture = SDL_CreateTextureFromSurface(renderer, levelSurface);
+    SDL_FreeSurface(levelSurface);
     if (!levelTexture) {
         std::cerr << "SDL_CreateTextureFromSurface error: " << SDL_GetError() << std::endl;
         return;
     }
 
-    // Set the position and size of the text
-    levelRect.x = 10; // Top-left corner
+    // Render the level text
+    levelRect.x = 10;
     levelRect.y = 10;
     SDL_QueryTexture(levelTexture, nullptr, nullptr, &levelRect.w, &levelRect.h);
-
-    // Render the text
     SDL_RenderCopy(renderer, levelTexture, nullptr, &levelRect);
-}
 
+    // Prepare the speed text
+    std::stringstream speedStream;
+    speedStream << "Speed: " << std::fixed << std::setprecision(2) << gameTimeline.getTic();
+    std::string speedStr = speedStream.str();
+
+    SDL_Surface* speedSurface = TTF_RenderText_Solid(font, speedStr.c_str(), white);
+    if (!speedSurface) {
+        std::cerr << "TTF_RenderText_Solid error: " << TTF_GetError() << std::endl;
+        return;
+    }
+    speedTexture = SDL_CreateTextureFromSurface(renderer, speedSurface);
+    SDL_FreeSurface(speedSurface);
+    if (!speedTexture) {
+        std::cerr << "SDL_CreateTextureFromSurface error: " << SDL_GetError() << std::endl;
+        return;
+    }
+
+    // Render the speed text next to the level
+    speedRect.x = levelRect.x + levelRect.w + 20; // Position it to the right of the level
+    speedRect.y = levelRect.y;
+    SDL_QueryTexture(speedTexture, nullptr, nullptr, &speedRect.w, &speedRect.h);
+    SDL_RenderCopy(renderer, speedTexture, nullptr, &speedRect);
+}

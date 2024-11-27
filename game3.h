@@ -14,14 +14,14 @@
 #include <SDL2/SDL_ttf.h>
 
 // Constants for screen dimensions
-#define SCREEN_WIDTH 800
-#define SCREEN_HEIGHT 600
+#define SCREEN_WIDTH 1920
+#define SCREEN_HEIGHT 1080
 
 // Constants for grid and snake
-#define GRID_SIZE 20  // Size of each grid cell
+#define GRID_SIZE 40  // Size of each grid cell
 #define INITIAL_SPEED 0.5f  // Initial game speed
 #define FOOD_SCORE 10  // Points per food
-#define INITIAL_SNAKE_LENGTH 3
+#define INITIAL_SNAKE_LENGTH 6
 
 // Define GameType enumeration
 enum GameType {
@@ -146,8 +146,10 @@ private:
 
     // Other member variables
     TTF_Font* font;                   ///< Font for rendering score text.
-    SDL_Texture* scoreTexture;        ///< Texture for the score text.
-    SDL_Rect scoreRect;               ///< Rectangle for the score text position.
+    SDL_Texture* scoreTexture; // Texture for the score text
+    SDL_Texture* speedTexture; // Texture for the speed text
+    SDL_Rect scoreRect;        // Rectangle for the score text position and size
+    SDL_Rect speedRect;        // Rectangle for the speed text position and size
 
     // Timeline for managing events
     Timeline gameTimeline;            ///< Timeline for event timestamps.

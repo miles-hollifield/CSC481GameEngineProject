@@ -16,16 +16,16 @@
 #include <SDL2/SDL_ttf.h>
 
 // Constants for screen dimensions
-#define SCREEN_WIDTH 800
-#define SCREEN_HEIGHT 600
+#define SCREEN_WIDTH 1920
+#define SCREEN_HEIGHT 1080
 
 // Constants for object dimensions
-#define PLAYER_WIDTH 40
-#define PLAYER_HEIGHT 20
-#define ALIEN_WIDTH 30
-#define ALIEN_HEIGHT 20
-#define PROJECTILE_WIDTH 5
-#define PROJECTILE_HEIGHT 10
+#define PLAYER_WIDTH 80
+#define PLAYER_HEIGHT 40
+#define ALIEN_WIDTH 60
+#define ALIEN_HEIGHT 40
+#define PROJECTILE_WIDTH 10
+#define PROJECTILE_HEIGHT 20
 
 // Forward declarations for properties
 class RectProperty;
@@ -175,8 +175,10 @@ private:
 
     // Text rendering
     TTF_Font* font;                   ///< Font for rendering text.
-    SDL_Texture* levelTexture;        ///< Texture for the level text.
-    SDL_Rect levelRect;               ///< Rectangle for the level text position.
+    SDL_Texture* levelTexture; // Texture for the level text
+    SDL_Texture* speedTexture; // Texture for the speed text
+    SDL_Rect levelRect;        // Rectangle for the level text position and size
+    SDL_Rect speedRect;        // Rectangle for the speed text position and size
 
     // Timeline for managing events
     Timeline gameTimeline;            ///< Timeline for managing game speed.

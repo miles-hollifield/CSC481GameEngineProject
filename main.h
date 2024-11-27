@@ -4,7 +4,7 @@
 #include <iostream>
 #include <cstring>
 #include <unordered_map>
-#include "game3.h"
+#include "game.h"
 #include "init.h"
 #include "defs.h"
 #include "Timeline.h"

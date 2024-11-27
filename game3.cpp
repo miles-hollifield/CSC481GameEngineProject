@@ -1,16 +1,15 @@
 #include "game3.h"
-#include "PropertyManager.h"
-#include "ThreadManager.h"
+#include <cstdlib>
+#include <ctime>
+#include <sstream>
 #include <iostream>
-#include <cstring>
-#include "EventManager.h"
-#include "DeathEvent.h"
-#include "SpawnEvent.h"
+
+// Define a safe zone for the score display
+constexpr int SCORE_ZONE_HEIGHT = 50;
 
 // Constructor
 Game3::Game3(SDL_Renderer* renderer, zmq::socket_t& reqSocket, zmq::socket_t& subSocket, zmq::socket_t& eventReqSocket)
-    : renderer(renderer), reqSocket(reqSocket), subSocket(subSocket), eventReqSocket(eventReqSocket), quit(false),
-    gameOver(false), score(0), gameTimeline(nullptr, INITIAL_SPEED), font(nullptr), scoreTexture(nullptr), clientId(-1) {
+    : renderer(renderer), reqSocket(reqSocket), subSocket(subSocket), eventReqSocket(eventReqSocket), quit(false), gameOver(false), score(0), gameTimeline(nullptr, INITIAL_SPEED), font(nullptr), scoreTexture(nullptr) {
     srand(static_cast<unsigned>(time(nullptr))); // Seed for random number generation
 
     // Initialize SDL_ttf
@@ -28,7 +27,6 @@ Game3::Game3(SDL_Renderer* renderer, zmq::socket_t& reqSocket, zmq::socket_t& su
         return;
     }
 
-    registerWithServer();
     initGameObjects();
 }
 
@@ -43,26 +41,14 @@ Game3::~Game3() {
     TTF_Quit();
 }
 
-// Register the client with the server
-void Game3::registerWithServer() {
-    zmq::message_t request(sizeof(clientId));
-    memcpy(request.data(), &clientId, sizeof(clientId));
-    reqSocket.send(request, zmq::send_flags::none);
-
-    zmq::message_t reply;
-    reqSocket.recv(reply);
-    memcpy(&clientId, reply.data(), sizeof(clientId));
-
-    std::cout << "Assigned client ID: " << clientId << std::endl;
-}
-
 // Initialize game objects
 void Game3::initGameObjects() {
+    // Clear snake and food
     snakeBody.clear();
 
     // Initialize snake
     for (int i = 0; i < INITIAL_SNAKE_LENGTH; ++i) {
-        snakeBody.push_back({ SCREEN_WIDTH / 2 / GRID_SIZE - i, SCREEN_HEIGHT / 2 / GRID_SIZE });
+        snakeBody.push_back({ SCREEN_WIDTH / 2 / GRID_SIZE - i, (SCREEN_HEIGHT / 2 + SCORE_ZONE_HEIGHT) / GRID_SIZE });
     }
     direction = { 1, 0 }; // Start moving right
 
@@ -73,12 +59,12 @@ void Game3::initGameObjects() {
 // Place food at a random position
 void Game3::placeFood() {
     food.x = rand() % (SCREEN_WIDTH / GRID_SIZE);
-    food.y = rand() % (SCREEN_HEIGHT / GRID_SIZE);
+    food.y = rand() % ((SCREEN_HEIGHT - SCORE_ZONE_HEIGHT) / GRID_SIZE) + (SCORE_ZONE_HEIGHT / GRID_SIZE); // Exclude score zone
 
     // Ensure food is not placed on the snake
     while (checkCollision(food)) {
         food.x = rand() % (SCREEN_WIDTH / GRID_SIZE);
-        food.y = rand() % (SCREEN_HEIGHT / GRID_SIZE);
+        food.y = rand() % ((SCREEN_HEIGHT - SCORE_ZONE_HEIGHT) / GRID_SIZE) + (SCORE_ZONE_HEIGHT / GRID_SIZE); // Exclude score zone
     }
 }
 
@@ -104,7 +90,7 @@ void Game3::run() {
             }
 
             handleEvents();
-            receiveServerUpdates(); // Integrate server updates
+            sendPlayerUpdate(); // Send snake's state to the server
             update();
             render();
 
@@ -139,55 +125,59 @@ void Game3::handleEvents() {
             direction = { 1, 0 };
         }
     }
-
-    sendPlayerUpdate(); // Send player state to server
 }
 
-// Send player state to the server
+// Send snake's state to the server
 void Game3::sendPlayerUpdate() {
-    zmq::message_t request(sizeof(clientId) + sizeof(PlayerPosition));
+    static int clientId = -1; // Start as a new client (-1 indicates new connection)
 
-    PlayerPosition pos;
-    pos.x = snakeBody.front().x;
-    pos.y = snakeBody.front().y;
-    pos.score = score;
+    // Prepare a request message containing client ID and PlayerState
+    struct PlayerState {
+        int x, y;        // Snake's head position
+        int score;       // Current score
+        GameType gameType; // Game type
+    };
 
+    PlayerState state;
+    state.x = snakeBody.front().x;
+    state.y = snakeBody.front().y;
+    state.score = score;
+    state.gameType = SNAKE;
+
+    // Calculate the size of the message: clientId + PlayerState
+    zmq::message_t request(sizeof(clientId) + sizeof(PlayerState));
+
+    // Copy clientId and PlayerState into the message
     memcpy(request.data(), &clientId, sizeof(clientId));
-    memcpy(static_cast<char*>(request.data()) + sizeof(clientId), &pos, sizeof(pos));
+    memcpy(static_cast<char*>(request.data()) + sizeof(clientId), &state, sizeof(PlayerState));
 
+    // Send the request to the server
     reqSocket.send(request, zmq::send_flags::none);
-}
 
-// Receive updates from the server
-void Game3::receiveServerUpdates() {
-    zmq::message_t update;
-    if (subSocket.recv(update, zmq::recv_flags::dontwait)) {
-        char* buffer = static_cast<char*>(update.data());
-        while (buffer < static_cast<char*>(update.data()) + update.size()) {
-            int id;
-            PlayerPosition pos;
-            memcpy(&id, buffer, sizeof(id));
-            buffer += sizeof(id);
-            memcpy(&pos, buffer, sizeof(pos));
-            buffer += sizeof(pos);
+    // Receive the server's reply
+    zmq::message_t reply;
+    reqSocket.recv(reply, zmq::recv_flags::none);
 
-            allPlayers[id] = pos; // Update all players' positions
-        }
+    if (clientId == -1) {
+        // If the client ID is still -1, read the new ID assigned by the server
+        memcpy(&clientId, reply.data(), sizeof(clientId));
+        std::cout << "Connected to server with client ID: " << clientId << std::endl;
     }
 }
+
 
 // Update game state
 void Game3::update() {
     updateGameObjects();
 }
 
-// Update game objects
+// Update snake and food
 void Game3::updateGameObjects() {
     // Calculate new head position
     SDL_Point newHead = { snakeBody.front().x + direction.x, snakeBody.front().y + direction.y };
 
     // Check for collisions with walls or itself
-    if (newHead.x < 0 || newHead.y < 0 || newHead.x >= SCREEN_WIDTH / GRID_SIZE || newHead.y >= SCREEN_HEIGHT / GRID_SIZE || checkCollision(newHead)) {
+    if (newHead.x < 0 || newHead.y < SCORE_ZONE_HEIGHT / GRID_SIZE || newHead.x >= SCREEN_WIDTH / GRID_SIZE || newHead.y >= SCREEN_HEIGHT / GRID_SIZE || checkCollision(newHead)) {
         gameOver = true;
         return;
     }

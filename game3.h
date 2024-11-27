@@ -23,23 +23,23 @@
 #define FOOD_SCORE 10  // Points per food
 #define INITIAL_SNAKE_LENGTH 3
 
-/**
- * @brief Represents the position and score of a player in the game.
- */
-struct PlayerPosition {
-    int x, y;  ///< Player's position
-    int score; ///< Player's score
+// Define GameType enumeration
+enum GameType {
+    PLATFORMER = 1,
+    SNAKE,
+    SPACE_INVADERS
 };
 
+
 /**
- * @brief The Game3 class implements the core Snake game logic with client-server integration.
+ * @brief The Game3 class implements the core Snake game logic with client-server networking.
  */
 class Game3 {
 public:
     /**
      * @brief Constructs a Game3 object with an SDL renderer and ZeroMQ sockets.
      * @param renderer SDL renderer for drawing the game.
-     * @param reqSocket ZeroMQ request socket for sending player data.
+     * @param reqSocket ZeroMQ request socket for sending player position data.
      * @param subSocket ZeroMQ subscriber socket for receiving updates.
      * @param eventReqSocket ZeroMQ socket for sending event data.
      */
@@ -57,11 +57,6 @@ public:
 
 private:
     // Initialization and setup
-    /**
-     * @brief Registers the client with the server and assigns a unique client ID.
-     */
-    void registerWithServer();
-
     /**
      * @brief Initializes the game objects such as the snake and food.
      */
@@ -90,22 +85,34 @@ private:
      */
     void updateGameObjects();
 
-    // Networking functions
-    /**
-     * @brief Sends the current player state to the server.
-     */
-    void sendPlayerUpdate();
-
-    /**
-     * @brief Receives updates from the server.
-     */
-    void receiveServerUpdates();
-
     // Event handling
     /**
      * @brief Processes input and raises corresponding events.
      */
     void handleEvents();
+
+    /**
+     * @brief Handles a food event when food is consumed by the snake.
+     * @param objectID ID of the food object.
+     */
+    void handleFoodEvent(int objectID);
+
+    /**
+     * @brief Handles a game-over event when the snake collides with itself or the walls.
+     * @param objectID ID of the object triggering the event.
+     */
+    void handleGameOverEvent(int objectID);
+
+    // Networking functions
+    /**
+     * @brief Sends the player's snake data to the server.
+     */
+    void sendPlayerUpdate();
+
+    /**
+     * @brief Receives updates from the server, including other players' snakes.
+     */
+    void receiveServerUpdates();
 
     // Rendering functions
     /**
@@ -126,16 +133,16 @@ private:
     zmq::socket_t& eventReqSocket;    ///< ZeroMQ event socket for raising events.
 
     // Game object management
-    int clientId;                     ///< Unique client ID assigned by the server.
+    int snakeID;                      ///< ID of the snake's head.
     std::deque<SDL_Point> snakeBody;  ///< The snake body represented as a deque of grid positions.
     SDL_Point food;                   ///< Position of the food on the grid.
     SDL_Point direction;              ///< Current movement direction of the snake.
+    std::unordered_map<int, std::deque<SDL_Point>> otherSnakes; ///< Other players' snakes.
 
     // Game state
     bool quit;                        ///< Tracks whether the game should exit.
     bool gameOver;                    ///< Tracks whether the game is over and needs a reset.
     int score;                        ///< Current score.
-    std::unordered_map<int, PlayerPosition> allPlayers; ///< Tracks all players' states.
 
     // Other member variables
     TTF_Font* font;                   ///< Font for rendering score text.

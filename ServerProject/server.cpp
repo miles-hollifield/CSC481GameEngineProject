@@ -1,52 +1,52 @@
 #include <zmq.hpp>
 #include <iostream>
 #include <unordered_map>
-#include <deque>
 #include <thread>
 #include <chrono>
 #include <cstring>
 #include <mutex>
+#include <cmath>
 
-#define SCREEN_WIDTH 800
-#define SCREEN_HEIGHT 600
-#define GRID_SIZE 20
+// Constants
+#define SCREEN_WIDTH 1920
+#define SCREEN_HEIGHT 1080
 #define HEARTBEAT_INTERVAL_MS 10000
+#define GRID_SIZE 20
 
-// Game identifiers
+// Enum for game types
 enum GameType {
     PLATFORMER = 1,
     SNAKE,
     SPACE_INVADERS
 };
 
-// Common player state
+// Structures for player data
+struct PlayerPosition {
+    int x, y;
+};
+
 struct PlayerState {
-    int x, y;         // Position
-    int score;        // Score
-    GameType gameType; // Game type (Platformer, Snake, or Space Invaders)
+    PlayerPosition pos;  // Position of the player
+    int score;           // Score for Snake or Space Invaders
+    GameType gameType;   // The game type the player is playing
 };
 
-// Snake-specific data
-struct SnakeGameState {
-    std::deque<std::pair<int, int>> body; // Snake body (list of grid cells)
-    int directionX, directionY;           // Movement direction
+// Spawn event data structure
+struct SpawnEventData {
+    int spawnX, spawnY;
 };
 
-// Space Invaders-specific data
-struct SpaceInvadersGameState {
-    int level;   // Current level of the player
-    bool alive;  // Player's alive status
-};
-
-// Global data structures
+// Global state
 std::unordered_map<int, PlayerState> players;
-std::unordered_map<int, SnakeGameState> snakeGames;
-std::unordered_map<int, SpaceInvadersGameState> spaceInvaderGames;
 std::unordered_map<int, std::chrono::steady_clock::time_point> lastHeartbeat;
 std::mutex playersMutex;
 int nextClientId = 0;
 
-// Function to handle client requests
+// Snake and Space Invaders specific data
+std::unordered_map<int, SpawnEventData> snakeGames;  // Snake-specific state
+std::unordered_map<int, int> spaceInvaderGames;      // Level state for Space Invaders
+
+// Function to handle incoming requests from clients
 void handleRequests(zmq::socket_t& repSocket) {
     while (true) {
         zmq::message_t request;
@@ -55,47 +55,25 @@ void handleRequests(zmq::socket_t& repSocket) {
             zmq::recv_result_t received = repSocket.recv(request, zmq::recv_flags::none);
 
             if (received) {
-                // Extract client ID, game type, and position
                 int clientId;
-                GameType gameType;
-                PlayerState playerState;
+                PlayerPosition pos;
                 memcpy(&clientId, request.data(), sizeof(clientId));
-                memcpy(&gameType, static_cast<char*>(request.data()) + sizeof(clientId), sizeof(gameType));
-                memcpy(&playerState, static_cast<char*>(request.data()) + sizeof(clientId) + sizeof(gameType), sizeof(playerState));
+                memcpy(&pos, static_cast<char*>(request.data()) + sizeof(clientId), sizeof(pos));
 
-                // Lock mutex for thread safety
                 std::lock_guard<std::mutex> lock(playersMutex);
 
-                if (clientId == -1) {
-                    // New client connection
+                if (clientId == -1) {  // New client
                     clientId = nextClientId++;
-                    playerState.gameType = gameType;
-                    players[clientId] = playerState;
+                    players[clientId] = { pos, 0, PLATFORMER };  // Default game type is PLATFORMER
                     lastHeartbeat[clientId] = std::chrono::steady_clock::now();
-
-                    if (gameType == SNAKE) {
-                        // Initialize Snake game state
-                        SnakeGameState snakeState;
-                        snakeState.body.push_back({ playerState.x / GRID_SIZE, playerState.y / GRID_SIZE });
-                        snakeState.directionX = 1;
-                        snakeState.directionY = 0;
-                        snakeGames[clientId] = snakeState;
-                    }
-                    else if (gameType == SPACE_INVADERS) {
-                        // Initialize Space Invaders game state
-                        SpaceInvadersGameState invadersState = { 1, true }; // Level 1, player alive
-                        spaceInvaderGames[clientId] = invadersState;
-                    }
-
-                    std::cout << "New client connected: " << clientId << " (Game: " << gameType << ")" << std::endl;
+                    std::cout << "New player connected: " << clientId << std::endl;
 
                     zmq::message_t reply(sizeof(clientId));
                     memcpy(reply.data(), &clientId, sizeof(clientId));
                     repSocket.send(reply, zmq::send_flags::none);
                 }
-                else {
-                    // Existing client
-                    players[clientId] = playerState;
+                else {  // Existing client
+                    players[clientId].pos = pos;
                     lastHeartbeat[clientId] = std::chrono::steady_clock::now();
                     zmq::message_t reply("OK", 2);
                     repSocket.send(reply, zmq::send_flags::none);
@@ -108,43 +86,83 @@ void handleRequests(zmq::socket_t& repSocket) {
     }
 }
 
-// Broadcast player states and game-specific data
-void broadcastGameState(zmq::socket_t& pubSocket) {
+// Function to broadcast player positions to all 2D platformer clients
+void broadcastPositions(zmq::socket_t& pubSocket) {
     while (true) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
         std::lock_guard<std::mutex> lock(playersMutex);
+
         if (!players.empty()) {
-            zmq::message_t update(players.size() * (sizeof(int) + sizeof(PlayerState)));
+            zmq::message_t update(players.size() * (sizeof(int) + sizeof(PlayerPosition)));
             char* buffer = static_cast<char*>(update.data());
 
             for (const auto& player : players) {
-                int id = player.first;
-                PlayerState state = player.second;
-
-                memcpy(buffer, &id, sizeof(id));
-                buffer += sizeof(id);
-                memcpy(buffer, &state, sizeof(state));
-                buffer += sizeof(state);
+                if (player.second.gameType == PLATFORMER) {
+                    memcpy(buffer, &player.first, sizeof(player.first));
+                    buffer += sizeof(player.first);
+                    memcpy(buffer, &player.second.pos, sizeof(player.second.pos));
+                    buffer += sizeof(player.second.pos);
+                }
             }
 
-            pubSocket.send(update, zmq::send_flags::none);
+            try {
+                pubSocket.send(update, zmq::send_flags::none);
+            }
+            catch (const zmq::error_t& e) {
+                std::cerr << "Error broadcasting positions: " << e.what() << std::endl;
+            }
         }
     }
 }
 
-// Check for disconnected clients
+// Function to handle events (e.g., respawn for 2D platformer)
+void handleEvents(zmq::socket_t& eventRepSocket) {
+    while (true) {
+        zmq::message_t request;
+
+        try {
+            zmq::recv_result_t received = eventRepSocket.recv(request, zmq::recv_flags::none);
+            if (received) {
+                int clientId;
+                SpawnEventData spawnData;
+                memcpy(&clientId, request.data(), sizeof(clientId));
+                memcpy(&spawnData, static_cast<char*>(request.data()) + sizeof(clientId), sizeof(spawnData));
+
+                std::lock_guard<std::mutex> lock(playersMutex);
+
+                if (players.find(clientId) != players.end() && players[clientId].gameType == PLATFORMER) {
+                    // Adjust spawn point if it's blocked
+                    for (const auto& player : players) {
+                        if (std::abs(player.second.pos.x - spawnData.spawnX) <= 25 &&
+                            std::abs(player.second.pos.y - spawnData.spawnY) <= 25) {
+                            spawnData.spawnX += 60;  // Shift spawn point
+                        }
+                    }
+
+                    zmq::message_t reply(sizeof(spawnData));
+                    memcpy(reply.data(), &spawnData, sizeof(spawnData));
+                    eventRepSocket.send(reply, zmq::send_flags::none);
+                }
+            }
+        }
+        catch (const zmq::error_t& e) {
+            std::cerr << "Error handling events: " << e.what() << std::endl;
+        }
+    }
+}
+
+// Function to check for disconnected clients
 void checkForTimeouts() {
     while (true) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-
         auto now = std::chrono::steady_clock::now();
+
         std::lock_guard<std::mutex> lock(playersMutex);
 
         for (auto it = lastHeartbeat.begin(); it != lastHeartbeat.end();) {
             if (std::chrono::duration_cast<std::chrono::milliseconds>(now - it->second).count() > HEARTBEAT_INTERVAL_MS) {
                 int clientId = it->first;
-                std::cout << "Client " << clientId << " timed out." << std::endl;
+                std::cout << "Client " << clientId << " disconnected." << std::endl;
 
                 players.erase(clientId);
                 snakeGames.erase(clientId);
@@ -154,47 +172,6 @@ void checkForTimeouts() {
             else {
                 ++it;
             }
-        }
-    }
-}
-
-// Handle game-specific events
-void handleEvents(zmq::socket_t& eventRepSocket) {
-    while (true) {
-        zmq::message_t request;
-
-        try {
-            zmq::recv_result_t received = eventRepSocket.recv(request, zmq::recv_flags::none);
-
-            if (received) {
-                int clientId;
-                char eventData[256]; // Generic event data
-                memcpy(&clientId, request.data(), sizeof(clientId));
-                memcpy(eventData, static_cast<char*>(request.data()) + sizeof(clientId), sizeof(eventData));
-
-                std::lock_guard<std::mutex> lock(playersMutex);
-                if (players.find(clientId) != players.end()) {
-                    PlayerState& player = players[clientId];
-                    std::cout << "Event received from client " << clientId << ": " << eventData << std::endl;
-
-                    // Game-specific event handling (expand as needed)
-                    if (player.gameType == SNAKE) {
-                        // Handle Snake game events
-                    }
-                    else if (player.gameType == SPACE_INVADERS) {
-                        // Handle Space Invaders game events
-                    }
-                    else if (player.gameType == PLATFORMER) {
-                        // Handle Platformer game events
-                    }
-
-                    zmq::message_t reply("Event OK", 8);
-                    eventRepSocket.send(reply, zmq::send_flags::none);
-                }
-            }
-        }
-        catch (const zmq::error_t& e) {
-            std::cerr << "Error receiving event: " << e.what() << std::endl;
         }
     }
 }
@@ -210,7 +187,7 @@ int main() {
     eventRepSocket.bind("tcp://*:5557");
 
     std::thread requestThread(handleRequests, std::ref(repSocket));
-    std::thread broadcastThread(broadcastGameState, std::ref(pubSocket));
+    std::thread broadcastThread(broadcastPositions, std::ref(pubSocket));
     std::thread timeoutThread(checkForTimeouts);
     std::thread eventThread(handleEvents, std::ref(eventRepSocket));
 

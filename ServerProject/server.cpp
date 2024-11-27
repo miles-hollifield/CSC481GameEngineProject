@@ -118,35 +118,44 @@ void broadcastPositions(zmq::socket_t& pubSocket) {
 // Function to handle events (e.g., respawn for 2D platformer)
 void handleEvents(zmq::socket_t& eventRepSocket) {
     while (true) {
-        zmq::message_t request;
+        zmq::message_t request; // Message to store incoming event data
 
         try {
+            // Receive messages from clients (blocking call)
             zmq::recv_result_t received = eventRepSocket.recv(request, zmq::recv_flags::none);
+
             if (received) {
+                // Extract client ID and spawnData from the request
                 int clientId;
                 SpawnEventData spawnData;
                 memcpy(&clientId, request.data(), sizeof(clientId));
                 memcpy(&spawnData, static_cast<char*>(request.data()) + sizeof(clientId), sizeof(spawnData));
 
+                // Lock the mutex to safely update the shared player data
                 std::lock_guard<std::mutex> lock(playersMutex);
 
-                if (players.find(clientId) != players.end() && players[clientId].gameType == PLATFORMER) {
-                    // Adjust spawn point if it's blocked
-                    for (const auto& player : players) {
-                        if (std::abs(player.second.pos.x - spawnData.spawnX) <= 25 &&
-                            std::abs(player.second.pos.y - spawnData.spawnY) <= 25) {
-                            spawnData.spawnX += 60;  // Shift spawn point
-                        }
-                    }
+                std::cout << "Spawn event for client: " << clientId << std::endl;
 
-                    zmq::message_t reply(sizeof(spawnData));
-                    memcpy(reply.data(), &spawnData, sizeof(spawnData));
-                    eventRepSocket.send(reply, zmq::send_flags::none);
+                // Check if spawnpoint is blocked by another player
+                for (const auto& player : players) {
+                    if (std::abs(player.second.pos.x - spawnData.spawnX) <= 25 && std::abs(player.second.pos.y - spawnData.spawnY) <= 25) {
+                        spawnData.spawnX += 60;  // Adjust spawnX if blocked
+                    }
                 }
+
+                SpawnEventData newSpawnData; // Create new spawn data to send back to client
+                newSpawnData.spawnX = spawnData.spawnX; // Set new spawnX
+                newSpawnData.spawnY = spawnData.spawnY; // Set new spawnY
+
+                zmq::message_t reply(sizeof(clientId) + sizeof(newSpawnData)); // Create reply message
+                memcpy(reply.data(), &clientId, sizeof(clientId)); // Copy clientId to reply message
+                memcpy(static_cast<char*>(reply.data()) + sizeof(clientId), &newSpawnData, sizeof(newSpawnData)); // Copy newSpawnData to reply message
+                eventRepSocket.send(reply, zmq::send_flags::none); // Send reply message back to client
             }
         }
         catch (const zmq::error_t& e) {
-            std::cerr << "Error handling events: " << e.what() << std::endl;
+            // Handle any ZeroMQ errors that might occur during message reception
+            std::cerr << "Error receiving message: " << e.what() << std::endl;
         }
     }
 }

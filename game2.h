@@ -16,16 +16,16 @@
 #include <SDL2/SDL_ttf.h>
 
 // Constants for screen dimensions
-#define SCREEN_WIDTH 1920
-#define SCREEN_HEIGHT 1080
+#define SCREEN_WIDTH 1920  // The width of the game window
+#define SCREEN_HEIGHT 1080 // The height of the game window
 
 // Constants for object dimensions
-#define PLAYER_WIDTH 80
-#define PLAYER_HEIGHT 40
-#define ALIEN_WIDTH 60
-#define ALIEN_HEIGHT 40
-#define PROJECTILE_WIDTH 10
-#define PROJECTILE_HEIGHT 20
+#define PLAYER_WIDTH 80         // Width of the player object
+#define PLAYER_HEIGHT 40        // Height of the player object
+#define ALIEN_WIDTH 60          // Width of an alien object
+#define ALIEN_HEIGHT 40         // Height of an alien object
+#define PROJECTILE_WIDTH 10     // Width of a projectile
+#define PROJECTILE_HEIGHT 20    // Height of a projectile
 
 // Forward declarations for properties
 class RectProperty;
@@ -36,9 +36,7 @@ struct PlayerPosition {
     int x, y;  // X and Y coordinates of the player
 };
 
-/**
- * @brief The Game2 class implements the core Space Invaders game logic with client-server networking.
- */
+// The Game2 class implements the core Space Invaders game logic with client-server networking
 class Game2 {
 public:
     /**
@@ -61,13 +59,11 @@ public:
     void run();
 
 private:
-    // Initialization and setup
     /**
      * @brief Initializes game objects such as the player, aliens, and projectiles.
      */
     void initGameObjects();
 
-    // Update functions
     /**
      * @brief Updates the game state, including object movement and collision checks.
      */
@@ -78,7 +74,6 @@ private:
      */
     void updateGameObjects();
 
-    // Event handling
     /**
      * @brief Processes input and raises corresponding events.
      */
@@ -101,7 +96,6 @@ private:
      */
     void resetGame();
 
-    // Networking functions
     /**
      * @brief Sends the player's position to the server.
      */
@@ -112,7 +106,6 @@ private:
      */
     void receiveServerUpdates();
 
-    // Rendering functions
     /**
      * @brief Renders all game objects, including the player, aliens, and projectiles.
      */
@@ -147,39 +140,33 @@ private:
      */
     void renderLevelText();
 
-    // Utility functions
     /**
      * @brief Fires a projectile from the player's position.
      */
     void fireProjectile();
 
-    // SDL and networking variables
-    SDL_Renderer* renderer;           ///< SDL renderer for drawing the game.
-    SDL_Event e;                      ///< SDL event object for input handling.
-    zmq::socket_t& reqSocket;         ///< ZeroMQ request socket for sending player data.
-    zmq::socket_t& subSocket;         ///< ZeroMQ subscriber socket for updates.
-    zmq::socket_t& eventReqSocket;    ///< ZeroMQ event socket for raising events.
+    SDL_Renderer* renderer;           // SDL renderer for drawing the game
+    SDL_Event e;                      // SDL event object for input handling
+    zmq::socket_t& reqSocket;         // ZeroMQ request socket for sending player data
+    zmq::socket_t& subSocket;         // ZeroMQ subscriber socket for updates
+    zmq::socket_t& eventReqSocket;    // ZeroMQ event socket for raising events
 
-    // Game object management
-    int playerID;                     ///< ID of the player object.
-    std::vector<int> alienIDs;        ///< IDs of alien objects.
-    std::vector<int> projectileIDs;   ///< IDs of projectile objects.
-    std::vector<int> alienProjectileIDs; ///< IDs of alien projectile objects.
-    std::unordered_map<int, PlayerPosition> allPlayers; ///< Map of all players' positions.
+    int playerID;                     // ID of the player object
+    std::vector<int> alienIDs;        // IDs of alien objects
+    std::vector<int> projectileIDs;   // IDs of projectile objects
+    std::vector<int> alienProjectileIDs; // IDs of alien projectile objects
+    std::unordered_map<int, PlayerPosition> allPlayers; // Map of all players' positions
 
-    // Game state
-    bool quit;                        ///< Whether the game is running.
-    bool gameOver;                    ///< Whether the game is over.
-    int clientId;                     ///< Unique client ID assigned by the server.
-    int level = 1;                    ///< Current game level.
+    bool quit;                        // Whether the game is running
+    bool gameOver;                    // Whether the game is over
+    int clientId;                     // Unique client ID assigned by the server
+    int level = 1;                    // Current game level
 
-    // Text rendering
-    TTF_Font* font;                   ///< Font for rendering text.
-    SDL_Texture* levelTexture; // Texture for the level text
-    SDL_Texture* speedTexture; // Texture for the speed text
-    SDL_Rect levelRect;        // Rectangle for the level text position and size
-    SDL_Rect speedRect;        // Rectangle for the speed text position and size
+    TTF_Font* font;                   // Font for rendering text
+    SDL_Texture* levelTexture;        // Texture for the level text
+    SDL_Texture* speedTexture;        // Texture for the speed text
+    SDL_Rect levelRect;               // Rectangle for the level text position and size
+    SDL_Rect speedRect;               // Rectangle for the speed text position and size
 
-    // Timeline for managing events
-    Timeline gameTimeline;            ///< Timeline for managing game speed.
+    Timeline gameTimeline;            // Timeline for managing game speed
 };

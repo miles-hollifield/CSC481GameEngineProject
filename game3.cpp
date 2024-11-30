@@ -8,50 +8,49 @@
 #include <sstream>
 #include <iostream>
 
-// Constructor
+// Constructor to initialize the game
 Game3::Game3(SDL_Renderer* renderer, zmq::socket_t& reqSocket, zmq::socket_t& subSocket, zmq::socket_t& eventReqSocket)
     : renderer(renderer), reqSocket(reqSocket), subSocket(subSocket), eventReqSocket(eventReqSocket), quit(false), gameOver(false), score(0), gameTimeline(nullptr, INITIAL_SPEED), font(nullptr), scoreTexture(nullptr), speedTexture(nullptr) {
     srand(static_cast<unsigned>(time(nullptr))); // Seed for random number generation
 
-    // Initialize SDL_ttf
+    // Initialize SDL_ttf for rendering text
     if (TTF_Init() == -1) {
         std::cerr << "TTF_Init error: " << TTF_GetError() << std::endl;
-        quit = true;
+        quit = true; // Quit the game if TTF initialization fails
         return;
     }
 
-    // Load font
+    // Load the font for rendering score and speed
     font = TTF_OpenFont("./fonts/PixelPowerline-9xOK.ttf", 24);
     if (!font) {
         std::cerr << "Failed to load font: " << TTF_GetError() << std::endl;
-        quit = true;
+        quit = true; // Quit the game if font loading fails
         return;
     }
 
-    initGameObjects();
+    initGameObjects(); // Initialize game objects (snake and food)
 }
 
-// Destructor
+// Destructor to clean up resources
 Game3::~Game3() {
-    // Clean up font and textures
     if (font) {
-        TTF_CloseFont(font);
+        TTF_CloseFont(font); // Free the font resource
     }
     if (scoreTexture) {
-        SDL_DestroyTexture(scoreTexture);
+        SDL_DestroyTexture(scoreTexture); // Free the score texture
     }
     if (speedTexture) {
-        SDL_DestroyTexture(speedTexture);
+        SDL_DestroyTexture(speedTexture); // Free the speed texture
     }
-    TTF_Quit();
+    TTF_Quit(); // Quit SDL_ttf
 }
 
-// Initialize game objects
+// Initialize game objects like the snake and food
 void Game3::initGameObjects() {
     auto& propertyManager = PropertyManager::getInstance();
     auto& eventManager = EventManager::getInstance();
 
-    // Register event handlers
+    // Register event handlers for SPAWN and DEATH events
     eventManager.registerHandler(SPAWN, [this](std::shared_ptr<Event> event) {
         auto spawnEvent = std::static_pointer_cast<SpawnEvent>(event);
         handleSpawn(spawnEvent->getObjectID());
@@ -62,73 +61,76 @@ void Game3::initGameObjects() {
         handleDeath(deathEvent->getObjectID());
         });
 
-    // Clear snake and food
+    // Clear the snake body and reset its position
     snakeBody.clear();
-
-    // Initialize snake
     for (int i = 0; i < INITIAL_SNAKE_LENGTH; ++i) {
         snakeBody.push_back({ SCREEN_WIDTH / 2 / GRID_SIZE - i, (SCREEN_HEIGHT / 2 + SCORE_ZONE_HEIGHT) / GRID_SIZE });
     }
-    direction = { 1, 0 }; // Start moving right
+    direction = { 1, 0 }; // Start moving to the right
 
-    // Place the first food
+    // Place the first food on the grid
     placeFood();
 }
 
-// Place food at a random position using the game object model
+// Place food at a random position, ensuring it does not overlap with the snake
 void Game3::placeFood() {
     auto& propertyManager = PropertyManager::getInstance();
 
+    // Generate random grid coordinates for the food
     food.x = rand() % (SCREEN_WIDTH / GRID_SIZE);
-    food.y = rand() % ((SCREEN_HEIGHT - SCORE_ZONE_HEIGHT) / GRID_SIZE);
+    food.y = rand() % ((SCREEN_HEIGHT - SCORE_ZONE_HEIGHT) / GRID_SIZE) + (SCORE_ZONE_HEIGHT / GRID_SIZE);
 
+    // Ensure the food is not placed on the snake
     while (checkCollision(food)) {
         food.x = rand() % (SCREEN_WIDTH / GRID_SIZE);
-        food.y = rand() % ((SCREEN_HEIGHT - SCORE_ZONE_HEIGHT) / GRID_SIZE);
+        food.y = rand() % ((SCREEN_HEIGHT - SCORE_ZONE_HEIGHT) / GRID_SIZE) + (SCORE_ZONE_HEIGHT / GRID_SIZE);
     }
 
+    // Destroy the previous food object if it exists
     if (propertyManager.hasObject(foodID)) {
         propertyManager.destroyObject(foodID);
     }
 
+    // Create a new food object with its position and render properties
     foodID = propertyManager.createObject();
     propertyManager.addProperty(foodID, "Rect", std::make_shared<RectProperty>(
         food.x * GRID_SIZE, food.y * GRID_SIZE, GRID_SIZE, GRID_SIZE));
     propertyManager.addProperty(foodID, "Render", std::make_shared<RenderProperty>(255, 0, 0)); // Red food
 }
 
-// Check for collisions
+// Check if a given position collides with the snake
 bool Game3::checkCollision(const SDL_Point& position) {
     for (const auto& segment : snakeBody) {
         if (segment.x == position.x && segment.y == position.y) {
-            return true;
+            return true; // Collision detected
         }
     }
-    return false;
+    return false; // No collision
 }
 
 // Main game loop
 void Game3::run() {
     while (!quit) {
         if (gameOver) {
-            resetGame();
+            resetGame(); // Reset the game if it is over
         }
 
-        handleEvents();
-        update();
-        render();
+        handleEvents(); // Handle player input
+        update();       // Update game state
+        render();       // Render game objects
 
-        SDL_Delay(100);
+        SDL_Delay(100); // Delay for consistent game speed
     }
 }
 
-// Handle input events
+// Handle player input events
 void Game3::handleEvents() {
     while (SDL_PollEvent(&e) != 0) {
         if (e.type == SDL_QUIT) {
-            quit = true;
+            quit = true; // Exit the game loop if quit event is detected
         }
 
+        // Handle arrow key inputs for changing snake direction
         const Uint8* keystates = SDL_GetKeyboardState(nullptr);
         if (keystates[SDL_SCANCODE_UP] && direction.y == 0) {
             direction = { 0, -1 };
@@ -145,74 +147,75 @@ void Game3::handleEvents() {
     }
 }
 
-// Update game state
+// Update the game state, including snake movement and food collision
 void Game3::update() {
+    // Calculate the new position for the snake's head
     SDL_Point newHead = { snakeBody.front().x + direction.x, snakeBody.front().y + direction.y };
 
+    // Check for collisions with the walls or the snake itself
     if (newHead.x < 0 || newHead.y < SCORE_ZONE_HEIGHT / GRID_SIZE || newHead.x >= SCREEN_WIDTH / GRID_SIZE || newHead.y >= SCREEN_HEIGHT / GRID_SIZE || checkCollision(newHead)) {
-        gameOver = true;
+        gameOver = true; // End the game if a collision is detected
         return;
     }
 
+    // Add the new head position to the snake
     snakeBody.push_front(newHead);
 
     auto& propertyManager = PropertyManager::getInstance();
     auto foodRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(foodID, "Rect"));
     if (newHead.x == foodRect->x / GRID_SIZE && newHead.y == foodRect->y / GRID_SIZE) {
-        score += FOOD_SCORE;
-        placeFood();
-        gameTimeline.changeTic(gameTimeline.getTic() + 0.05f); // Increase speed
+        score += FOOD_SCORE; // Increase the score
+        placeFood();         // Place a new food item
+        gameTimeline.changeTic(gameTimeline.getTic() + 0.05f); // Speed up the game
     }
     else {
-        snakeBody.pop_back();
+        snakeBody.pop_back(); // Remove the tail segment if no food is eaten
     }
 
-    sendPlayerUpdate();
+    sendPlayerUpdate(); // Send the updated game state to the server
 }
 
-// Render game objects
+// Render the game objects (snake, food, score, and speed)
 void Game3::render() {
-    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255); // Clear the screen with black
     SDL_RenderClear(renderer);
 
-    SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
+    // Render the snake
+    SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255); // Green snake
     for (const auto& segment : snakeBody) {
         SDL_Rect rect = { segment.x * GRID_SIZE, segment.y * GRID_SIZE, GRID_SIZE, GRID_SIZE };
         SDL_RenderFillRect(renderer, &rect);
     }
 
+    // Render the food
     auto& propertyManager = PropertyManager::getInstance();
     auto foodRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(foodID, "Rect"));
     SDL_Rect sdlFoodRect = { foodRect->x, foodRect->y, foodRect->w, foodRect->h };
     SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255); // Red food
     SDL_RenderFillRect(renderer, &sdlFoodRect);
 
-    renderScoreText();
-    SDL_RenderPresent(renderer);
+    renderScoreText(); // Render score and speed
+    SDL_RenderPresent(renderer); // Display the rendered frame
 }
 
-// Render score text
+// Render the score and speed text
 void Game3::renderScoreText() {
     if (scoreTexture) SDL_DestroyTexture(scoreTexture);
     if (speedTexture) SDL_DestroyTexture(speedTexture);
 
     std::stringstream scoreStream;
-    scoreStream << "Score: " << score;
-    std::string scoreStr = scoreStream.str();
-
+    scoreStream << "Score: " << score; // Format the score text
     std::stringstream speedStream;
-    speedStream << "Speed: " << std::fixed << std::setprecision(2) << gameTimeline.getTic();
-    std::string speedStr = speedStream.str();
+    speedStream << "Speed: " << std::fixed << std::setprecision(2) << gameTimeline.getTic(); // Format the speed text
 
-    SDL_Color white = { 255, 255, 255, 255 };
-    SDL_Surface* scoreSurface = TTF_RenderText_Solid(font, scoreStr.c_str(), white);
-    SDL_Surface* speedSurface = TTF_RenderText_Solid(font, speedStr.c_str(), white);
+    SDL_Color white = { 255, 255, 255, 255 }; // White text color
+    SDL_Surface* scoreSurface = TTF_RenderText_Solid(font, scoreStream.str().c_str(), white);
+    SDL_Surface* speedSurface = TTF_RenderText_Solid(font, speedStream.str().c_str(), white);
 
     if (scoreSurface) {
         scoreTexture = SDL_CreateTextureFromSurface(renderer, scoreSurface);
         SDL_FreeSurface(scoreSurface);
     }
-
     if (speedSurface) {
         speedTexture = SDL_CreateTextureFromSurface(renderer, speedSurface);
         SDL_FreeSurface(speedSurface);
@@ -249,7 +252,7 @@ void Game3::sendPlayerUpdate() {
     reqSocket.recv(reply, zmq::recv_flags::none);
 
     if (clientId == -1) {
-        memcpy(&clientId, reply.data(), sizeof(clientId));
+        memcpy(&clientId, reply.data(), sizeof(clientId)); // Assign client ID on the first connection
         std::cout << "Connected to server with client ID: " << clientId << std::endl;
     }
 }

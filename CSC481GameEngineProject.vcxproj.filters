@@ -63,6 +63,12 @@
     <ClInclude Include="InputEvent.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="game2.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="game3.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="game.cpp">
@@ -99,6 +105,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="InputEvent.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="game2.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="game3.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

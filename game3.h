@@ -125,6 +125,7 @@ private:
     bool gameOver;                    // Tracks whether the game is over and needs a reset
     int score;                        // Current score
     int clientId;                     // Unique client ID assigned by the server
+    bool resetting;
     int foodID;
 
     TTF_Font* font;                   // Font for rendering score text

@@ -4,7 +4,7 @@
 #include <iostream>
 #include <cstring>
 #include <unordered_map>
-#include "game2.h"
+#include "game.h" // Change accordingly; if using Game2, replace game.h with game2.h; if using Game3, replace game.h with game3.h
 #include "init.h"
 #include "defs.h"
 #include "Timeline.h"

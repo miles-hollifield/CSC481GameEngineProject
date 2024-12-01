@@ -121,7 +121,7 @@ void Game3::run() {
         update();       // Update game state
         render();       // Render game objects
 
-        SDL_Delay(100); // Delay for consistent game speed
+        SDL_Delay(static_cast<int>(100 / gameTimeline.getTic())); // Adjusts delay based on tic rate
     }
 }
 
@@ -167,8 +167,10 @@ void Game3::update() {
     auto foodRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(foodID, "Rect"));
     if (newHead.x == foodRect->x / GRID_SIZE && newHead.y == foodRect->y / GRID_SIZE) {
         score += FOOD_SCORE; // Increase the score
-        placeFood();         // Place a new food item
-        gameTimeline.changeTic(gameTimeline.getTic() + 0.05f); // Speed up the game
+        //placeFood();         // Place a new food item
+		EventManager::getInstance().raiseEvent(std::make_shared<DeathEvent>(foodID, &gameTimeline));
+        float newTic = gameTimeline.getTic() + 0.05f; // Speed up the game slightly
+        gameTimeline.changeTic(newTic);
     }
     else {
         snakeBody.pop_back(); // Remove the tail segment if no food is eaten
@@ -272,12 +274,13 @@ void Game3::handleSpawn(int objectID) {
     }
 }
 
-
 // Handle death events
 void Game3::handleDeath(int objectID) {
-    std::cout << "Death event triggered for object ID: " << objectID << std::endl;
+    if (objectID == foodID) {
+        std::cout << "Death event for food. Handling food respawn." << std::endl;
+        placeFood();
+    }
 }
-
 
 // Reset the game
 void Game3::resetGame() {

@@ -203,7 +203,6 @@ void Game2::fireProjectile() {
     auto& propertyManager = PropertyManager::getInstance();
     auto playerRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(playerID, "Rect"));
 
-    // Create a new projectile object and set its properties
     int projectileID = propertyManager.createObject();
     propertyManager.addProperty(projectileID, "Rect", std::make_shared<RectProperty>(
         playerRect->x + PLAYER_WIDTH / 2 - PROJECTILE_WIDTH / 2,
@@ -213,7 +212,11 @@ void Game2::fireProjectile() {
     propertyManager.addProperty(projectileID, "Render", std::make_shared<RenderProperty>(255, 255, 255)); // White projectile
     propertyManager.addProperty(projectileID, "Velocity", std::make_shared<VelocityProperty>(0, -10)); // Moves upward
     projectileIDs.push_back(projectileID);
+
+    // Raise a SpawnEvent for the projectile
+    EventManager::getInstance().raiseEvent(std::make_shared<SpawnEvent>(projectileID, &gameTimeline));
 }
+
 
 // Update game state
 void Game2::update() {
@@ -233,13 +236,13 @@ void Game2::update() {
             SDL_Rect alienSDL = { alienRect->x, alienRect->y, alienRect->w, alienRect->h };
 
             if (SDL_HasIntersection(&projSDL, &alienSDL)) {
-                // Add IDs to removal lists for both aliens and projectiles
-                aliensToRemove.push_back(alienID);
-                projectilesToRemove.push_back(projID);
-
                 // Raise death events for the destroyed objects
                 EventManager::getInstance().raiseEvent(std::make_shared<DeathEvent>(alienID, &gameTimeline));
                 EventManager::getInstance().raiseEvent(std::make_shared<DeathEvent>(projID, &gameTimeline));
+
+                // Add IDs to removal lists for both aliens and projectiles
+                aliensToRemove.push_back(alienID);
+                projectilesToRemove.push_back(projID);
             }
         }
     }
@@ -258,6 +261,7 @@ void Game2::update() {
     // Update all remaining game objects
     updateGameObjects();
 }
+
 
 // Update game objects
 void Game2::updateGameObjects() {
@@ -279,6 +283,7 @@ void Game2::updateGameObjects() {
 
         // Remove projectile if it goes off-screen
         if (projRect->y + PROJECTILE_HEIGHT < 0) {
+            EventManager::getInstance().raiseEvent(std::make_shared<DeathEvent>(*it, &gameTimeline));
             propertyManager.destroyObject(*it);
             it = projectileIDs.erase(it);
         }
@@ -340,6 +345,9 @@ void Game2::updateGameObjects() {
             propertyManager.addProperty(alienProjID, "Render", std::make_shared<RenderProperty>(255, 255, 0)); // Yellow projectile
             propertyManager.addProperty(alienProjID, "Velocity", std::make_shared<VelocityProperty>(0, 5));   // Move downward
             alienProjectileIDs.push_back(alienProjID);
+
+            // Raise a SpawnEvent for the new alien projectile
+            EventManager::getInstance().raiseEvent(std::make_shared<SpawnEvent>(alienProjID, &gameTimeline));
         }
     }
 
@@ -353,8 +361,10 @@ void Game2::updateGameObjects() {
 
         // Check for collision with the player
         if (SDL_HasIntersection(&projSDL, &playerSDL)) {
-            // Destroy both the player and the projectile
+            // Raise DeathEvent for both the player and the projectile
             EventManager::getInstance().raiseEvent(std::make_shared<DeathEvent>(playerID, &gameTimeline));
+            EventManager::getInstance().raiseEvent(std::make_shared<DeathEvent>(*it, &gameTimeline));
+
             propertyManager.destroyObject(playerID);
             propertyManager.destroyObject(*it);
             it = alienProjectileIDs.erase(it);
@@ -364,6 +374,7 @@ void Game2::updateGameObjects() {
             gameOver = true;
         }
         else if (projRect->y > SCREEN_HEIGHT) { // Remove off-screen projectiles
+            EventManager::getInstance().raiseEvent(std::make_shared<DeathEvent>(*it, &gameTimeline));
             propertyManager.destroyObject(*it);
             it = alienProjectileIDs.erase(it);
         }
@@ -375,6 +386,9 @@ void Game2::updateGameObjects() {
     // Check if all aliens are destroyed
     if (alienIDs.empty()) {
         std::cout << "All aliens destroyed! Moving to the next level..." << std::endl;
+
+        // Raise SpawnEvent for the next level
+        EventManager::getInstance().raiseEvent(std::make_shared<SpawnEvent>(playerID, &gameTimeline));
 
         // Increase tic rate and reset the game for the next level
         gameTimeline.changeTic(gameTimeline.getTic() + 0.5f);
@@ -450,26 +464,58 @@ void Game2::renderProjectile(int projectileID) {
 
 // Handle a spawn event
 void Game2::handleSpawn(int objectID) {
-    // Log the spawn event for debugging
     std::cout << "Spawn event triggered for object ID: " << objectID << std::endl;
+
+    auto& propertyManager = PropertyManager::getInstance();
+
+    // Find a suitable spawn position (for example, reset the player or an alien)
+    SDL_Point spawnPosition = { SCREEN_WIDTH / 2, SCREEN_HEIGHT - 100 }; // Default spawn position
+    if (objectID == playerID) {
+        // If it's the player, reset to the default spawn position
+        auto playerRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(objectID, "Rect"));
+        playerRect->x = spawnPosition.x;
+        playerRect->y = spawnPosition.y;
+        std::cout << "Player respawned at (" << spawnPosition.x << ", " << spawnPosition.y << ")" << std::endl;
+    }
+    else if (std::find(alienIDs.begin(), alienIDs.end(), objectID) != alienIDs.end()) {
+        // If it's an alien, respawn it in a random row
+        int column = rand() % 10; // Assuming 10 columns
+        auto alienRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(objectID, "Rect"));
+        alienRect->x = column * (ALIEN_WIDTH + 10) + 50;
+        alienRect->y = 50; // Reset aliens to the top row
+        std::cout << "Alien respawned at (" << alienRect->x << ", " << alienRect->y << ")" << std::endl;
+    }
 }
 
 // Handle a death event
 void Game2::handleDeath(int objectID) {
-    // Log the death event for debugging
     std::cout << "Death event triggered for object ID: " << objectID << std::endl;
 
-    // Check if the player has been destroyed
+    auto& propertyManager = PropertyManager::getInstance();
+
     if (objectID == playerID) {
-        std::cout << "Player has been hit. Preparing to reset the game..." << std::endl;
-
-        // Mark the game as over and avoid further processing
+        // If the player is destroyed, reset the game state
+        std::cout << "Player destroyed. Resetting the game..." << std::endl;
         gameOver = true;
-        return;
     }
+    else if (std::find(alienIDs.begin(), alienIDs.end(), objectID) != alienIDs.end()) {
+        // Remove the alien from the game
+        alienIDs.erase(std::remove(alienIDs.begin(), alienIDs.end(), objectID), alienIDs.end());
+        propertyManager.destroyObject(objectID);
+        std::cout << "Alien destroyed. Remaining aliens: " << alienIDs.size() << std::endl;
 
-    // Destroy the object triggering the death event
-    PropertyManager::getInstance().destroyObject(objectID);
+        // Check if all aliens are destroyed
+        if (alienIDs.empty()) {
+            std::cout << "All aliens destroyed. Advancing to the next level..." << std::endl;
+            resetGame();
+        }
+    }
+    else if (std::find(projectileIDs.begin(), projectileIDs.end(), objectID) != projectileIDs.end()) {
+        // Remove the projectile
+        projectileIDs.erase(std::remove(projectileIDs.begin(), projectileIDs.end(), objectID), projectileIDs.end());
+        propertyManager.destroyObject(objectID);
+        std::cout << "Projectile destroyed." << std::endl;
+    }
 }
 
 // Reset the game state
@@ -478,35 +524,36 @@ void Game2::resetGame() {
 
     // Destroy all projectiles
     for (int projID : projectileIDs) {
+        EventManager::getInstance().raiseEvent(std::make_shared<DeathEvent>(projID, &gameTimeline));
         propertyManager.destroyObject(projID);
     }
     projectileIDs.clear();
 
     // Destroy all alien projectiles
     for (int alienProjID : alienProjectileIDs) {
+        EventManager::getInstance().raiseEvent(std::make_shared<DeathEvent>(alienProjID, &gameTimeline));
         propertyManager.destroyObject(alienProjID);
     }
     alienProjectileIDs.clear();
 
     // Destroy all aliens
     for (int alienID : alienIDs) {
+        EventManager::getInstance().raiseEvent(std::make_shared<DeathEvent>(alienID, &gameTimeline));
         propertyManager.destroyObject(alienID);
     }
     alienIDs.clear();
 
     // Destroy the player object if it exists
     if (propertyManager.hasObject(playerID)) {
+        EventManager::getInstance().raiseEvent(std::make_shared<DeathEvent>(playerID, &gameTimeline));
         propertyManager.destroyObject(playerID);
     }
 
-    // Handle reset logic based on the game state
     if (gameOver) {
         // Reset to the first level with default speed
         level = 1;
         gameTimeline.changeTic(1.0f);
         std::cout << "Player hit! Game reset to level 1 with default speed." << std::endl;
-
-        // Reset the game-over flag
         gameOver = false;
     }
     else {
@@ -520,13 +567,8 @@ void Game2::resetGame() {
 
     // Reinitialize all game objects for the new level
     initGameObjects();
-
-    // Confirm reset for debugging
-    std::cout << "Game objects reinitialized for level " << level << "." << std::endl;
-
-    // Ensure the quit flag is reset
-    quit = false;
 }
+
 
 // Render the level and speed text
 void Game2::renderLevelText() {

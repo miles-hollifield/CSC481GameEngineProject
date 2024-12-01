@@ -77,26 +77,29 @@ void Game3::placeFood() {
     auto& propertyManager = PropertyManager::getInstance();
 
     // Generate random grid coordinates for the food
-    food.x = rand() % (SCREEN_WIDTH / GRID_SIZE);
-    food.y = rand() % ((SCREEN_HEIGHT - SCORE_ZONE_HEIGHT) / GRID_SIZE) + (SCORE_ZONE_HEIGHT / GRID_SIZE);
-
-    // Ensure the food is not placed on the snake
-    while (checkCollision(food)) {
-        food.x = rand() % (SCREEN_WIDTH / GRID_SIZE);
-        food.y = rand() % ((SCREEN_HEIGHT - SCORE_ZONE_HEIGHT) / GRID_SIZE) + (SCORE_ZONE_HEIGHT / GRID_SIZE);
-    }
+    SDL_Point newFoodPosition;
+    do {
+        newFoodPosition.x = rand() % (SCREEN_WIDTH / GRID_SIZE);
+        newFoodPosition.y = rand() % ((SCREEN_HEIGHT - SCORE_ZONE_HEIGHT) / GRID_SIZE) + (SCORE_ZONE_HEIGHT / GRID_SIZE);
+    } while (checkCollision(newFoodPosition)); // Ensure food does not spawn on the snake
 
     // Destroy the previous food object if it exists
     if (propertyManager.hasObject(foodID)) {
         propertyManager.destroyObject(foodID);
     }
 
-    // Create a new food object with its position and render properties
+    // Create a new food object with updated properties
     foodID = propertyManager.createObject();
     propertyManager.addProperty(foodID, "Rect", std::make_shared<RectProperty>(
-        food.x * GRID_SIZE, food.y * GRID_SIZE, GRID_SIZE, GRID_SIZE));
+        newFoodPosition.x * GRID_SIZE, newFoodPosition.y * GRID_SIZE, GRID_SIZE, GRID_SIZE));
     propertyManager.addProperty(foodID, "Render", std::make_shared<RenderProperty>(255, 0, 0)); // Red food
+
+    std::cout << "New food placed at: (" << newFoodPosition.x << ", " << newFoodPosition.y << ")" << std::endl;
+
+    // Raise a spawn event for the new food
+    EventManager::getInstance().raiseEvent(std::make_shared<SpawnEvent>(foodID, &gameTimeline));
 }
+
 
 // Check if a given position collides with the snake
 bool Game3::checkCollision(const SDL_Point& position) {
@@ -260,12 +263,42 @@ void Game3::sendPlayerUpdate() {
 // Handle spawn events
 void Game3::handleSpawn(int objectID) {
     std::cout << "Spawn event triggered for object ID: " << objectID << std::endl;
+
+    // Ensure the spawned object is food
+    if (objectID == foodID) {
+        std::cout << "Spawn event handled for food object. Food ID: " << objectID << std::endl;
+    }
+    else {
+        std::cerr << "Unhandled spawn event for object ID: " << objectID << std::endl;
+    }
 }
+
 
 // Handle death events
 void Game3::handleDeath(int objectID) {
     std::cout << "Death event triggered for object ID: " << objectID << std::endl;
+
+    auto& propertyManager = PropertyManager::getInstance();
+
+    // Handle snake death
+    if (objectID == snakeBody.front().x * GRID_SIZE + snakeBody.front().y) {
+        std::cout << "Snake collided with itself or the wall. Game over." << std::endl;
+        gameOver = true;
+        return;
+    }
+
+    // Handle food consumption
+    if (objectID == foodID) {
+        std::cout << "Food consumed. Spawning a new food object." << std::endl;
+
+        // Reuse `placeFood` to spawn new food and raise a spawn event
+        placeFood();
+        EventManager::getInstance().raiseEvent(std::make_shared<SpawnEvent>(foodID, &gameTimeline));
+    } else {
+        std::cerr << "Unhandled death event for object ID: " << objectID << std::endl;
+    }
 }
+
 
 // Reset the game
 void Game3::resetGame() {

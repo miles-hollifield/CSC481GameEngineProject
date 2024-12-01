@@ -97,6 +97,7 @@ void Game2::run() {
 
             // Process game events and updates
             handleEvents();
+			EventManager::getInstance().dispatchEvents();
             receiveServerUpdates(); // Integrate server updates
             update();
             render();

@@ -1,0 +1,107 @@
+#pragma once
+
+#include <SDL2/SDL.h>
+#include <zmq.hpp>
+#include <unordered_map>
+#include <chrono>
+#include <mutex>
+#include <memory>
+#include <cstdlib>
+#include <ctime>
+#include <vector>
+#include "Timeline.h"  // For timeline functionality (pausing/unpausing, time scaling)
+#include "PropertyManager.h"  // For property-based game objects
+#include "ThreadManager.h"  // For multithreading platform updates
+#include "EventManager.h"  // Event management system
+#include "DeathEvent.h"  // Specific event types
+#include "SpawnEvent.h"
+#include "InputEvent.h"
+
+// Define the structure to represent the position of a player
+struct PlayerPosition {
+    int x, y;
+};
+
+// Constants for screen dimensions
+#define SCREEN_WIDTH 1920
+#define SCREEN_HEIGHT 1080
+
+// Forward declarations for properties used in the game (RectProperty, VelocityProperty)
+class RectProperty;
+class VelocityProperty;
+
+// The Game class contains all the core game logic and manages the game state
+class Game2 {
+public:
+    // Constructor and Destructor
+    Game2(SDL_Renderer* renderer, zmq::socket_t& reqSocket, zmq::socket_t& subSocket);  // Initialize the game with the SDL renderer and ZeroMQ sockets
+    ~Game2();  // Clean up resources when the game is destroyed
+
+    // Main game loop
+    void run();  // Start the main game loop which handles updates and rendering
+
+private:
+    // Initialization and setup
+    void initGameObjects();  // Set up all game objects (e.g., players, platforms) at the start of the game
+
+    // Game object update functions
+    void update();  // Update the overall game state (e.g., player movement, collision checks)
+    void updateGameObjects();  // Update positions of all game objects (e.g., players, platforms)
+	void reset();  // Reset the game state to the initial setup
+
+    // Collision handling functions
+    void checkCollisions();  // Detect and handle collisions with platforms, boundaries, and death zones
+    void handleCollision(int spikeID);  // Handle collisions between the player and platforms
+    void handleBoundaries();  // Handle collisions with screen boundaries to prevent players from moving off-screen
+
+    // Event handling functions
+    void handleDeath(int objectID);  // Handle a death event
+    void handleSpawn(int objectID);  // Handle a spawn event
+    void handleInput(int objectID, const InputAction& inputAction);  // Handle input events
+    void resolveCollision(int obj1ID, int obj2ID);  // Resolve collision between two objects
+
+    // Rendering functions
+    void render();  // Render all game objects (players, platforms) to the screen
+    void renderObject(int objectID);  // Render a specific object based on its ID
+
+    // Input handling and networking functions
+    void handleEvents();  // Process input events (keyboard, mouse) and handle them accordingly
+    void sendMovementUpdate();  // Send the player's position update to the server
+    void receivePlayerPositions();  // Receive the positions of all players from the server
+
+    // SDL-related variables
+    SDL_Renderer* renderer;  // The SDL renderer responsible for drawing game objects to the screen
+    SDL_Event e;  // SDL event object used for handling input events (keyboard, mouse, etc.)
+
+    // Networking-related variables
+    zmq::socket_t& reqSocket;  // ZeroMQ request socket used to send player position data to the server
+    zmq::socket_t& subSocket;  // ZeroMQ subscriber socket used to receive updates from the server
+
+    // Game object and property IDs
+    int clientId;  // The unique ID assigned to the player's character by the server
+    int playerID;  // The ID of the player's object in the PropertyManager
+	int playerLives;  // The number of lives the player has remaining
+	std::vector<int> lives;  // Vector to store the life indicator objects
+	int bossID;  // The ID of the boss object in the PropertyManager
+	std::vector<int> enemyIDs;  // Vector to store the IDs of all enemies
+    int rightBoundaryID, leftBoundaryID;  // IDs for the right and left screen boundaries
+    int spawnPointID;  // ID for the player's spawn point (where they respawn after falling into the death zone)
+
+    // Player positions and rendering
+    std::unordered_map<int, PlayerPosition> allPlayers;  // Map that stores the positions of all players (received from the server)
+    std::unordered_map<int, SDL_Rect> allRects;  // Map to store the rectangles for rendering each player
+
+    // Timeline and time management
+    Timeline gameTimeline;  // Object that manages pausing, unpausing, and time scaling in the game
+    std::chrono::steady_clock::time_point lastTime;  // Time point used for calculating frame delta (used in game updates)
+
+    // Variables related to moving platforms and screen boundaries
+    std::mutex platformMutex;  // Mutex used for thread-safe updates to platform positions
+
+    // Quit flag
+    bool quit;  // Boolean flag that indicates whether the game should stop running (quit the game loop)
+
+    // Thread management
+    ThreadManager threadManager;  // Object that manages multithreading, such as platform movement threads
+    EventManager eventManager;
+};

@@ -1,5 +1,4 @@
 #include "main.h"
-#include "game.h"
 #include <zmq.hpp>
 #include <iostream>
 #include <unordered_map>
@@ -33,7 +32,7 @@ int main(int argc, char* args[]) {
     subSocket.set(zmq::sockopt::subscribe, "");  // Subscribe to all messages on the subscription socket
 
     // Create an instance of the Game class, passing the SDL renderer and ZeroMQ sockets
-    Game game(renderer, reqSocket, subSocket);
+    Game3 game(renderer, reqSocket, subSocket);
 
     // Start the game loop
     game.run();

@@ -10,7 +10,7 @@
 #include "CollisionEvent.h"
 
 Game3::Game3(SDL_Renderer* renderer, zmq::socket_t& reqSocket, zmq::socket_t& subSocket)
-    : renderer(renderer), reqSocket(reqSocket), subSocket(subSocket), quit(false), clientId(-1), playerLives(3), gameTimeline(nullptr, 1.0f)
+    : renderer(renderer), reqSocket(reqSocket), subSocket(subSocket), quit(false), clientId(-1), playerLives(5), gameTimeline(nullptr, 1.0f)
 {
     initGameObjects();
 }
@@ -46,37 +46,74 @@ void Game3::initGameObjects() {
         handleSpawn(spawnEvent->getObjectID());
         });
 
+	// Spawn point coordinates
+    std::srand(std::time(nullptr));
+    int spawnX = (std::rand() % (GRID_WIDTH)) * 100 + 15;
+    int spawnY = (std::rand() % (GRID_HEIGHT)) * 100 + 15;
+
     // Create player object and add properties
     playerID = propertyManager.createObject();
-    propertyManager.addProperty(playerID, "Rect", std::make_shared<RectProperty>(SCREEN_WIDTH / 2 - 25, 1000, 50, 50));
+    propertyManager.addProperty(playerID, "Rect", std::make_shared<RectProperty>(spawnX + 15, spawnY + 15, 50, 50));
     propertyManager.addProperty(playerID, "Render", std::make_shared<RenderProperty>(255, 51, 153));
     propertyManager.addProperty(playerID, "Collision", std::make_shared<CollisionProperty>(true));
     propertyManager.addProperty(playerID, "Velocity", std::make_shared<VelocityProperty>(0, 0));
     propertyManager.addProperty(playerID, "Input", std::make_shared<InputProperty>(true, false));
 
-    // Create wall objects and add properties
-    for (int i = 1; i <= 98; ++i) {
-        int wallID = propertyManager.createObject();
-        propertyManager.addProperty(wallID, "Rect", std::make_shared<RectProperty>(0, 0, 100, 100));
-        propertyManager.addProperty(wallID, "Render", std::make_shared<RenderProperty>(255, 128, 0));
-        propertyManager.addProperty(wallID, "Collision", std::make_shared<CollisionProperty>(true));
-        propertyManager.addProperty(wallID, "Velocity", std::make_shared<VelocityProperty>(0, 0));
-        wallIDs.push_back(wallID);
+    // Create horizontal wall objects
+    int wallW = 100;
+    int wallH = 10;
+    for (int i = 0; i < GRID_HEIGHT + 1; i++) {
+        for (int j = 0; j < GRID_WIDTH; j++) {
+            if (rand() % 100 < 50 || i == 0 || i == GRID_HEIGHT) {
+                int wallX = j * 100;
+                int wallY = i * 100;
+                int wallID = propertyManager.createObject();
+                propertyManager.addProperty(wallID, "Rect", std::make_shared<RectProperty>(wallX, wallY, wallW, wallH));
+                propertyManager.addProperty(wallID, "Render", std::make_shared<RenderProperty>(255, 128, 0));
+                propertyManager.addProperty(wallID, "Collision", std::make_shared<CollisionProperty>(true));
+                wallIDs.push_back(wallID);
+            }
+        }
     }
 
-    
+    // Create vertical wall objects
+    wallW = 10;
+    wallH = 100;
+    for (int i = 0; i < GRID_HEIGHT; i++) {
+        for (int j = 0; j < GRID_WIDTH + 1; j++) {
+            if (rand() % 100 < 50 || j == 0 || j == GRID_WIDTH) {
+                int wallX = j * 100;
+                int wallY = i * 100;
+                int wallID = propertyManager.createObject();
+                propertyManager.addProperty(wallID, "Rect", std::make_shared<RectProperty>(wallX, wallY, wallW, wallH));
+                propertyManager.addProperty(wallID, "Render", std::make_shared<RenderProperty>(255, 128, 0));
+                propertyManager.addProperty(wallID, "Collision", std::make_shared<CollisionProperty>(true));
+                wallIDs.push_back(wallID);
+            }
+        }
+    }
 
     // Create life objects and add properties
     for (int i = 1; i <= playerLives; ++i) {
         int lifeID = propertyManager.createObject();
-        propertyManager.addProperty(lifeID, "Rect", std::make_shared<RectProperty>(100 * i, 50, 50, 50));
+        propertyManager.addProperty(lifeID, "Rect", std::make_shared<RectProperty>(100 * i, 1020, 50, 50));
         propertyManager.addProperty(lifeID, "Render", std::make_shared<RenderProperty>(255, 0, 0));
         lives.push_back(lifeID);
     }
 
     // Create spawn point object and add properties
     spawnPointID = propertyManager.createObject();
-    propertyManager.addProperty(spawnPointID, "Rect", std::make_shared<RectProperty>(SCREEN_WIDTH / 2 - 25, 1000, 50, 50));
+    propertyManager.addProperty(spawnPointID, "Rect", std::make_shared<RectProperty>(spawnX, spawnY, 75, 75));
+	propertyManager.addProperty(spawnPointID, "Render", std::make_shared<RenderProperty>(0, 0, 255));
+
+	// Create finish point object and add properties
+    //std::srand(std::time(nullptr));
+	int finishX = (std::rand() % (GRID_WIDTH)) * 100 + 15;
+	int finishY = (std::rand() % (GRID_HEIGHT)) * 100 + 15;
+	finishPointID = propertyManager.createObject();
+	propertyManager.addProperty(finishPointID, "Rect", std::make_shared<RectProperty>(finishX, finishY, 75, 75));
+	propertyManager.addProperty(finishPointID, "Render", std::make_shared<RenderProperty>(0, 255, 0));
+	propertyManager.addProperty(finishPointID, "Collision", std::make_shared<CollisionProperty>(true));
 }
 
 // Main game loop
@@ -133,6 +170,14 @@ void Game3::handleEvents() {
         // Raise an input event for moving right
         EventManager::getInstance().raiseEvent(std::make_shared<InputEvent>(playerID, MOVE_RIGHT, &gameTimeline));
     }
+    else if (keystates[SDL_SCANCODE_DOWN]) {
+		// Raise an input event for moving down
+		EventManager::getInstance().raiseEvent(std::make_shared<InputEvent>(playerID, MOVE_DOWN, &gameTimeline));
+	}
+	else if (keystates[SDL_SCANCODE_UP]) {
+		// Raise an input event for moving up
+		EventManager::getInstance().raiseEvent(std::make_shared<InputEvent>(playerID, MOVE_UP, &gameTimeline));
+	}
     // If no arrow keys are pressed
     else {
         // Raise an input event for stopping
@@ -158,8 +203,8 @@ void Game3::handleDeath(int objectID) {
     auto spawnpointRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(spawnPointID, "Rect"));
 
     // Reset the player's position to the spawn point
-    playerRect->x = spawnpointRect->x;
-    playerRect->y = spawnpointRect->y;
+    playerRect->x = spawnpointRect->x + 15;
+    playerRect->y = spawnpointRect->y + 15;
     // Reset the player's velocity
     playerVel->vy = 0;
     playerVel->vx = 0;
@@ -195,13 +240,20 @@ void Game3::handleInput(int objectID, const InputAction& inputAction) {
 
     // Check the input action and update the player's velocity accordingly
     if (inputAction == MOVE_LEFT) {
-        playerVel->vx = -10; // Move left
+        playerVel->vx = -8; // Move left
     }
     else if (inputAction == MOVE_RIGHT) {
-        playerVel->vx = 10; // Move right
+        playerVel->vx = 8; // Move right
+    }
+	else if (inputAction == MOVE_DOWN) {
+		playerVel->vy = 8; // Move down
+	}
+    else if (inputAction == MOVE_UP) {
+        playerVel->vy = -8; // Move up
     }
     else if (inputAction == STOP) {
         playerVel->vx = 0; // Stop moving
+		playerVel->vy = 0;
     }
 }
 
@@ -233,6 +285,17 @@ void Game3::resolveCollision(int obj1ID, int obj2ID) {
     // Check if the player is colliding with the wall from the right
     else if (playerRect->x + playerRect->w / 2 > wallRect->x + wallRect->w) {
         handleDeath(obj1ID); // Handle player death
+    }
+    // Check if the player is colliding with the wall from the top
+    else if (playerRect->y + playerRect->h / 2 < wallRect->y) {
+        handleDeath(obj1ID); // Handle player death
+    }
+
+    // Remove the wall that was collided with if it is not on the border
+    auto wallCollision = std::static_pointer_cast<CollisionProperty>(propertyManager.getProperty(obj2ID, "Collision"));
+    if (wallRect->x != 0 && wallRect->x != GRID_WIDTH * 100 && wallRect->y != 0 && wallRect->y != GRID_HEIGHT * 100) {
+        wallCollision->hasCollision = false;
+        wallIDs.erase(std::remove(wallIDs.begin(), wallIDs.end(), obj2ID), wallIDs.end());
     }
 }
 
@@ -318,6 +381,11 @@ void Game3::handleCollision(int wallID) {
 
     // Check for intersection between the player and wall rectangles
     if (SDL_HasIntersection(&playRect, &eneRect)) {
+        if (wallID == finishPointID) {
+            // Handle collisions with the finish point
+			std::cout << "Player reached the finish point!" << std::endl;
+			quit = true;
+        }
         // Raise a collision event if there is an intersection
         EventManager::getInstance().raiseEvent(std::make_shared<CollisionEvent>(playerID, wallID, &gameTimeline));
     }
@@ -335,9 +403,14 @@ void Game3::checkCollisions() {
         int objectID = objectPair.first;
 
         // Check if the object has a Collision property and is not the player
-        if (objectPair.second.count("Collision") && objectID != playerID) {
-            // Handle collisions with other objects
-            handleCollision(objectID);
+		if (objectPair.second.count("Collision") && objectID != playerID) {
+			// Retrieve the CollisionProperty of the object
+			auto collision = std::static_pointer_cast<CollisionProperty>(objectPair.second.at("Collision"));
+			// Check if the object has collision enabled
+			if (collision->hasCollision) {
+				// Handle collisions with other objects
+				handleCollision(objectID);
+			}
         }
     }
 }
@@ -362,6 +435,7 @@ void Game3::updateGameObjects() {
     std::shared_ptr<RectProperty> playerRect = std::static_pointer_cast<RectProperty>(propertyManager.getProperty(playerID, "Rect"));
     std::shared_ptr<VelocityProperty> playerVel = std::static_pointer_cast<VelocityProperty>(propertyManager.getProperty(playerID, "Velocity"));
     playerRect->x += playerVel->vx;
+	playerRect->y += playerVel->vy;
 }
 
 // Main render function
@@ -380,6 +454,10 @@ void Game3::render() {
     for (int lifeID : lives) {
         renderObject(lifeID);
     }
+
+	renderObject(spawnPointID);
+
+	renderObject(finishPointID);
 
     // Render the player object
     renderObject(playerID);

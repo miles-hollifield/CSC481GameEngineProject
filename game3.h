@@ -26,6 +26,9 @@ struct PlayerPosition {
 #define SCREEN_WIDTH 1920
 #define SCREEN_HEIGHT 1080
 
+#define GRID_WIDTH 19
+#define GRID_HEIGHT 10
+
 // Forward declarations for properties used in the game (RectProperty, VelocityProperty)
 class RectProperty;
 class VelocityProperty;
@@ -81,7 +84,8 @@ private:
     int playerLives;  // The number of lives the player has remaining
     std::vector<int> lives;  // Vector to store the life indicator objects
     std::vector<int> wallIDs;  // Vector to store the IDs of all enemies
-    int spawnPointID;  // ID for the player's spawn point (where they respawn after falling into the death zone)
+    int spawnPointID;  // ID for the player's spawn point
+	int finishPointID;  // ID for the finish point object
 
     // Player positions and rendering
     std::unordered_map<int, PlayerPosition> allPlayers;  // Map that stores the positions of all players (received from the server)

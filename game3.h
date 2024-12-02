@@ -83,7 +83,7 @@ private:
     int playerID;  // The ID of the player's object in the PropertyManager
     int playerLives;  // The number of lives the player has remaining
     std::vector<int> lives;  // Vector to store the life indicator objects
-    std::vector<int> wallIDs;  // Vector to store the IDs of all enemies
+    std::vector<int> wallIDs;  // Vector to store the IDs of all walls
     int spawnPointID;  // ID for the player's spawn point
 	int finishPointID;  // ID for the finish point object
 

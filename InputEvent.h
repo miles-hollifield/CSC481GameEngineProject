@@ -13,6 +13,8 @@
 enum InputAction {
     MOVE_LEFT,  // Represents the player moving to the left.
     MOVE_RIGHT, // Represents the player moving to the right.
+	MOVE_UP,    // Represents the player moving up.
+	MOVE_DOWN,  // Represents the player moving down.
     JUMP,       // Represents the player jumping.
     STOP        // Represents the player stopping movement.
 };

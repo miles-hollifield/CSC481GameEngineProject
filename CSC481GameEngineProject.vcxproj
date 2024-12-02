@@ -27,6 +27,8 @@
     <ClInclude Include="EventManager.h" />
     <ClInclude Include="EventQueue.h" />
     <ClInclude Include="game.h" />
+    <ClInclude Include="game2.h" />
+    <ClInclude Include="game3.h" />
     <ClInclude Include="init.h" />
     <ClInclude Include="InputEvent.h" />
     <ClInclude Include="main.h" />
@@ -43,6 +45,8 @@
     <ClCompile Include="EventManager.cpp" />
     <ClCompile Include="EventQueue.cpp" />
     <ClCompile Include="game.cpp" />
+    <ClCompile Include="game2.cpp" />
+    <ClCompile Include="game3.cpp" />
     <ClCompile Include="init.cpp" />
     <ClCompile Include="InputEvent.cpp" />
     <ClCompile Include="main.cpp" />

@@ -31,7 +31,7 @@ class VelocityProperty;
 class Game {
 public:
     // Constructor and Destructor
-    Game(SDL_Renderer* renderer, zmq::socket_t& reqSocket, zmq::socket_t& subSocket);  // Initialize the game with the SDL renderer and ZeroMQ sockets
+    Game(SDL_Renderer* renderer, zmq::socket_t& reqSocket, zmq::socket_t& subSocket, zmq::socket_t& eventReqSocket);  // Initialize the game with the SDL renderer and ZeroMQ sockets
     ~Game();  // Clean up resources when the game is destroyed
 
     // Main game loop
@@ -50,7 +50,6 @@ private:
     void checkCollisions();  // Detect and handle collisions with platforms, boundaries, and death zones
     void handleCollision(int platformID);  // Handle collisions between the player and platforms
     void handleDeathzone();  // Handle the event when the player falls into the death zone
-    void handleBoundaries();  // Handle collisions with screen boundaries to prevent players from moving off-screen
 
     // Event handling functions
     void handleDeath(int objectID);  // Handle a death event
@@ -68,6 +67,8 @@ private:
     void sendMovementUpdate();  // Send the player's position update to the server
     void receivePlayerPositions();  // Receive the positions of all players from the server
 
+    SpawnEventData sendSpawnEvent(int objectID, int spawnX, int spawnY);  // Send a spawn event to the server
+
     // SDL-related variables
     SDL_Renderer* renderer;  // The SDL renderer responsible for drawing game objects to the screen
     SDL_Event e;  // SDL event object used for handling input events (keyboard, mouse, etc.)
@@ -75,6 +76,7 @@ private:
     // Networking-related variables
     zmq::socket_t& reqSocket;  // ZeroMQ request socket used to send player position data to the server
     zmq::socket_t& subSocket;  // ZeroMQ subscriber socket used to receive updates from the server
+    zmq::socket_t& eventReqSocket;  // ZeroMQ request socket used to send event data to the server
 
     // Game object and property IDs
     int clientId;  // The unique ID assigned to the player's character by the server
@@ -82,7 +84,6 @@ private:
     int platformID, platformID2, platformID3;  // IDs for static platforms
     int movingPlatformID, movingPlatformID2;  // IDs for moving platforms
     int deathZoneID;  // ID for the death zone (used to reset player position when they "die")
-    int rightBoundaryID, leftBoundaryID;  // IDs for the right and left screen boundaries
     int spawnPointID;  // ID for the player's spawn point (where they respawn after falling into the death zone)
 
     // Player positions and rendering
@@ -95,8 +96,6 @@ private:
 
     // Variables related to moving platforms and screen boundaries
     std::mutex platformMutex;  // Mutex used for thread-safe updates to platform positions
-    int rightScrollCount;  // Counter to track how many times the camera has scrolled to the right
-    int leftScrollCount;  // Counter to track how many times the camera has scrolled to the left
 
     // Quit flag
     bool quit;  // Boolean flag that indicates whether the game should stop running (quit the game loop)

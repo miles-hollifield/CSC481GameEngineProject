@@ -31,7 +31,9 @@ int main(int argc, char* args[]) {
 
     subSocket.set(zmq::sockopt::subscribe, "");  // Subscribe to all messages on the subscription socket
 
-    // Create an instance of the Game2 class, passing the SDL renderer and ZeroMQ sockets
+    // Create an instance of the Game class, passing the SDL renderer and ZeroMQ sockets
+	// Change accordingly; if using Game2, replace Game with Game2; 
+    // If using Game3, replace Game with Game3
     Game game(renderer, reqSocket, subSocket, eventReqSocket);
 
     // Start the game loop

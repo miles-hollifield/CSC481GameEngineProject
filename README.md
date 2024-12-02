@@ -34,18 +34,53 @@ This folder contains the **CSC481 Game Engine** and the associated game files. T
    - In Visual Studio, locate the **ServerProject** solution in the Solution Explorer.
    - **Right-click** on **ServerProject** and select **Debug** -> **Start New Instance** to launch the server.
 
-### 5. **Running the Game**:
-   - In Visual Studio, locate the **CSC481_GameEngineProject** solution in the Solution Explorer.
-   - **Right-click** on **CSC481_GameEngineProject** and select **Debug** -> **Start New Instance** to launch the game.
+### 5. **Choosing a Game**:
+   - The engine supports three games: Platformer, Space Invaders, and Snake. Follow the steps below to select and launch a specific game:
 
-### 6. **Running on Multiple Clients**:
-   - You can run multiple instances of the game by repeating step 5, launching additional game clients in **Debug** mode.
+#### 5.1 **Platformer Game (Default Setup)**:
+   - The project is pre-configured to run the platformer game.
+   - Simply build and run the game as described in Step 6.
+
+#### 5.2 **Space Invaders Game**:
+   - Modify the main.h file:
+    - Change #include "game.h" to #include "game2.h".
+   - Modify the main.cpp file:
+    - Change the Game instance to Game2 (e.g., Game2 game(renderer, reqSocket, subSocket, eventReqSocket);).
+   - Rebuild the project and launch the game.
+
+#### 5.3 **Snake Game**:
+   - Modify the main.h file:
+    - Change #include "game.h" to #include "game3.h".
+   - Modify the main.cpp file:
+    - Change the Game instance to Game3 (e.g., Game3 game(renderer, reqSocket, subSocket, eventReqSocket);).
+   - Rebuild the project and launch the game.
+
+### 6. **Running the Game**:
+   - In Visual Studio, locate the CSC481_GameEngineProject solution in the Solution Explorer.
+   - **Right-click** on **CSC481GameEngineProject** and select **Debug** -> **Start New Instance** to launch the game.
+
+### 7. **Running on Multiple Clients**:
+   - Only the Platformer Game supports multi-client gameplay.
+   - You can run multiple instances of the platformer game by repeating Step 6, launching additional game clients in Debug mode.
    - The server will handle all connected clients, and player movements will be synchronized across all clients.
 
 ## Game Controls
 
-- **Arrow Keys**: Move the controllable object left and right. Jump with the up arrow key.
-- **Collision Handling**: The object interacts with static and moving platforms.
+### Platformer Game Controls:
+   - Left/Right Arrow Keys: Move left or right.
+   - Up Arrow Key: Jump.
+   - Collision Handling: Interacts with static and moving platforms.
+
+### Space Invaders Game Controls:
+   - Left/Right Arrow Keys: Move the spaceship left or right.
+   - Spacebar: Shoot bullets to destroy incoming aliens.
+   - Alien Movement: Aliens move progressively faster as the game continues.
+
+### Snake Game Controls:
+   - Arrow Keys: Move the snake in the desired direction.
+   - Collision Handling: Avoid hitting the walls or the snake's body.
+   - Food Collection: Eat the food to grow the snake and increase the score.
+   - Game Speed: The snake moves faster as it eats food.
 
 ## Issues and Troubleshooting
 

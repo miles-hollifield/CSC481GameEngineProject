@@ -2,137 +2,111 @@
 
 #include <SDL2/SDL.h>
 #include <zmq.hpp>
-#include <deque>
 #include <unordered_map>
+#include <chrono>
+#include <mutex>
 #include <memory>
-#include "Timeline.h"
-#include "PropertyManager.h"
-#include "ThreadManager.h"
-#include "EventManager.h"
-#include "DeathEvent.h"
+#include <cstdlib>
+#include <ctime>
+#include <vector>
+#include "Timeline.h"  // For timeline functionality (pausing/unpausing, time scaling)
+#include "PropertyManager.h"  // For property-based game objects
+#include "ThreadManager.h"  // For multithreading platform updates
+#include "EventManager.h"  // Event management system
+#include "DeathEvent.h"  // Specific event types
 #include "SpawnEvent.h"
-#include <SDL2/SDL_ttf.h>
+#include "InputEvent.h"
 
-// Constants for screen dimensions
-#define SCREEN_WIDTH 1920  // The width of the game window
-#define SCREEN_HEIGHT 1080 // The height of the game window
-#define SCORE_ZONE_HEIGHT 50 // Safe zone for the score to display
-
-// Constants for grid and snake
-#define GRID_SIZE 40        // Size of each grid cell
-#define INITIAL_SPEED 0.5f  // Initial game speed
-#define FOOD_SCORE 10       // Points per food
-#define INITIAL_SNAKE_LENGTH 6 // Initial length of the snake
-
-// Define GameType enumeration
-enum GameType {
-    PLATFORMER = 1,  // Represents platformer games
-    SNAKE,           // Represents snake games
-    SPACE_INVADERS   // Represents space invaders games
+// Define the structure to represent the position of a player
+struct PlayerPosition {
+    int x, y;
 };
 
-/**
- * @brief The Game3 class implements the core Snake game logic with client-server networking.
- */
+// Constants for screen dimensions
+#define SCREEN_WIDTH 1920
+#define SCREEN_HEIGHT 1080
+
+// Constants for grid dimensions
+#define GRID_WIDTH 19
+#define GRID_HEIGHT 10
+
+// Forward declarations for properties used in the game (RectProperty, VelocityProperty)
+class RectProperty;
+class VelocityProperty;
+
+// The Game class contains all the core game logic and manages the game state
 class Game3 {
 public:
-    /**
-     * @brief Constructs a Game3 object with an SDL renderer and ZeroMQ sockets.
-     * @param renderer SDL renderer for drawing the game.
-     * @param reqSocket ZeroMQ request socket for sending player position data.
-     * @param subSocket ZeroMQ subscriber socket for receiving updates.
-     * @param eventReqSocket ZeroMQ socket for sending event data.
-     */
-    Game3(SDL_Renderer* renderer, zmq::socket_t& reqSocket, zmq::socket_t& subSocket, zmq::socket_t& eventReqSocket);
+    // Constructor and Destructor
+    Game3(SDL_Renderer* renderer, zmq::socket_t& reqSocket, zmq::socket_t& subSocket, zmq::socket_t& eventReqSocket);  // Initialize the game with the SDL renderer and ZeroMQ sockets
+    ~Game3();  // Clean up resources when the game is destroyed
 
-    /**
-     * @brief Destructor for Game3.
-     */
-    ~Game3();
-
-    /**
-     * @brief Starts the main game loop.
-     */
-    void run();
+    // Main game loop
+    void run();  // Start the main game loop which handles updates and rendering
 
 private:
-    /**
-     * @brief Initializes the game objects such as the snake and food.
-     */
-    void initGameObjects();
+    // Initialization and setup
+    void initGameObjects();  // Set up all game objects (e.g., players, platforms) at the start of the game
 
-    void handleSpawn(int objectID);
+    // Game object update functions
+    void update();  // Update the overall game state (e.g., player movement, collision checks)
+    void updateGameObjects();  // Update positions of all game objects (e.g., players, platforms)
 
-    void handleDeath(int objectID);
+    // Collision handling functions
+    void checkCollisions();  // Detect and handle collisions with platforms, boundaries, and death zones
+    void handleCollision(int wallID);  // Handle collisions between the player and platforms
 
-    /**
-     * @brief Places food randomly on the grid.
-     */
-    void placeFood();
+    // Event handling functions
+    void handleDeath(int objectID);  // Handle a death event
+    void handleSpawn(int objectID);  // Handle a spawn event
+    void handleInput(int objectID, const InputAction& inputAction);  // Handle input events
+    void resolveCollision(int obj1ID, int obj2ID);  // Resolve collision between two objects
 
-    /**
-     * @brief Checks for collisions with the snake.
-     * @param position The position to check for collision.
-     * @return True if there's a collision, otherwise false.
-     */
-    bool checkCollision(const SDL_Point& position);
+    // Rendering functions
+    void render();  // Render all game objects (players, platforms) to the screen
+    void renderObject(int objectID);  // Render a specific object based on its ID
 
-    /**
-     * @brief Updates the game state, including snake movement and collision checks.
-     */
-    void update();
+    // Input handling and networking functions
+    void handleEvents();  // Process input events (keyboard, mouse) and handle them accordingly
+    void sendMovementUpdate();  // Send the player's position update to the server
+    void receivePlayerPositions();  // Receive the positions of all players from the server
 
-    /**
-     * @brief Updates the position of game objects.
-     */
-    void updateGameObjects();
+    SpawnEventData sendSpawnEvent(int objectID, int spawnX, int spawnY);  // Send a spawn event to the server
 
-    /**
-     * @brief Processes input and raises corresponding events.
-     */
-    void handleEvents();
+    // SDL-related variables
+    SDL_Renderer* renderer;  // The SDL renderer responsible for drawing game objects to the screen
+    SDL_Event e;  // SDL event object used for handling input events (keyboard, mouse, etc.)
 
-    /**
-     * @brief Sends the player's snake data to the server.
-     */
-    void sendPlayerUpdate();
+    // Networking-related variables
+    zmq::socket_t& reqSocket;  // ZeroMQ request socket used to send player position data to the server
+    zmq::socket_t& subSocket;  // ZeroMQ subscriber socket used to receive updates from the server
+    zmq::socket_t& eventReqSocket;  // ZeroMQ request socket used to send event data to the server
 
-    /**
-     * @brief Renders all game objects, including the snake and food.
-     */
-    void render();
+    // Game object and property IDs
+    int clientId;  // The unique ID assigned to the player's character by the server
+    int playerID;  // The ID of the player's object in the PropertyManager
+    int playerLives;  // The number of lives the player has remaining
+    std::vector<int> lives;  // Vector to store the life indicator objects
+	std::vector<int> horizWallIDs;  // Vector to store the IDs of all horizontal walls
+    std::vector<int> vertWallIDs;  // Vector to store the IDs of all vertical walls
+    int spawnPointID;  // ID for the player's spawn point
+    int finishPointID;  // ID for the finish point object
 
-    void resetGame();
+    // Player positions and rendering
+    std::unordered_map<int, PlayerPosition> allPlayers;  // Map that stores the positions of all players (received from the server)
+    std::unordered_map<int, SDL_Rect> allRects;  // Map to store the rectangles for rendering each player
 
-    /**
-     * @brief Renders the score text on the screen.
-     */
-    void renderScoreText();
+    // Timeline and time management
+    Timeline gameTimeline;  // Object that manages pausing, unpausing, and time scaling in the game
+    std::chrono::steady_clock::time_point lastTime;  // Time point used for calculating frame delta (used in game updates)
 
-    SDL_Renderer* renderer;           // SDL renderer for drawing the game
-    SDL_Event e;                      // SDL event object for input handling
-    zmq::socket_t& reqSocket;         // ZeroMQ request socket for sending player data
-    zmq::socket_t& subSocket;         // ZeroMQ subscriber socket for updates
-    zmq::socket_t& eventReqSocket;    // ZeroMQ event socket for raising events
+    // Variables related to moving platforms and screen boundaries
+    std::mutex platformMutex;  // Mutex used for thread-safe updates to platform positions
 
-    int snakeID;                      // ID of the snake's head
-    std::deque<SDL_Point> snakeBody;  // The snake body represented as a deque of grid positions
-    SDL_Point food;                   // Position of the food on the grid
-    SDL_Point direction;              // Current movement direction of the snake
-    std::unordered_map<int, std::deque<SDL_Point>> otherSnakes; // Other players' snakes
+    // Quit flag
+    bool quit;  // Boolean flag that indicates whether the game should stop running (quit the game loop)
 
-    bool quit;                        // Tracks whether the game should exit
-    bool gameOver;                    // Tracks whether the game is over and needs a reset
-    int score;                        // Current score
-    int clientId;                     // Unique client ID assigned by the server
-    bool resetting;
-    int foodID;
-
-    TTF_Font* font;                   // Font for rendering score text
-    SDL_Texture* scoreTexture;        // Texture for the score text
-    SDL_Texture* speedTexture;        // Texture for the speed text
-    SDL_Rect scoreRect;               // Rectangle for the score text position and size
-    SDL_Rect speedRect;               // Rectangle for the speed text position and size
-
-    Timeline gameTimeline;            // Timeline for event timestamps
+    // Thread management
+    ThreadManager threadManager;  // Object that manages multithreading, such as platform movement threads
+    EventManager eventManager;
 };

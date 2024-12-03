@@ -1,172 +1,110 @@
+#pragma once
+
 #include <SDL2/SDL.h>
 #include <zmq.hpp>
-#include <vector>
 #include <unordered_map>
 #include <chrono>
 #include <mutex>
 #include <memory>
-#include "Timeline.h"
-#include "PropertyManager.h"
-#include "ThreadManager.h"
-#include "EventManager.h"
-#include "DeathEvent.h"
+#include <cstdlib>
+#include <ctime>
+#include <vector>
+#include "Timeline.h"  // For timeline functionality (pausing/unpausing, time scaling)
+#include "PropertyManager.h"  // For property-based game objects
+#include "ThreadManager.h"  // For multithreading platform updates
+#include "EventManager.h"  // Event management system
+#include "DeathEvent.h"  // Specific event types
 #include "SpawnEvent.h"
 #include "InputEvent.h"
-#include "CollisionEvent.h"
-#include <SDL2/SDL_ttf.h>
-
-// Constants for screen dimensions
-#define SCREEN_WIDTH 1920  // The width of the game window
-#define SCREEN_HEIGHT 1080 // The height of the game window
-
-// Constants for object dimensions
-#define PLAYER_WIDTH 80         // Width of the player object
-#define PLAYER_HEIGHT 40        // Height of the player object
-#define ALIEN_WIDTH 60          // Width of an alien object
-#define ALIEN_HEIGHT 40         // Height of an alien object
-#define PROJECTILE_WIDTH 10     // Width of a projectile
-#define PROJECTILE_HEIGHT 20    // Height of a projectile
-
-// Forward declarations for properties
-class RectProperty;
-class VelocityProperty;
 
 // Define the structure to represent the position of a player
 struct PlayerPosition {
-    int x, y;  // X and Y coordinates of the player
+    int x, y;
 };
 
-// The Game2 class implements the core Space Invaders game logic with client-server networking
+// Constants for screen dimensions
+#define SCREEN_WIDTH 1920
+#define SCREEN_HEIGHT 1080
+
+// Forward declarations for properties used in the game (RectProperty, VelocityProperty)
+class RectProperty;
+class VelocityProperty;
+
+// The Game class contains all the core game logic and manages the game state
 class Game2 {
 public:
-    /**
-     * @brief Constructs a Game2 object with an SDL renderer and ZeroMQ sockets.
-     * @param renderer SDL renderer for drawing the game.
-     * @param reqSocket ZeroMQ request socket for sending player position data.
-     * @param subSocket ZeroMQ subscriber socket for receiving updates.
-     * @param eventReqSocket ZeroMQ socket for sending event data.
-     */
-    Game2(SDL_Renderer* renderer, zmq::socket_t& reqSocket, zmq::socket_t& subSocket, zmq::socket_t& eventReqSocket);
+    // Constructor and Destructor
+    Game2(SDL_Renderer* renderer, zmq::socket_t& reqSocket, zmq::socket_t& subSocket, zmq::socket_t& eventReqSocket);  // Initialize the game with the SDL renderer and ZeroMQ sockets
+    ~Game2();  // Clean up resources when the game is destroyed
 
-    /**
-     * @brief Destructor for Game2.
-     */
-    ~Game2();
-
-    /**
-     * @brief Starts the main game loop.
-     */
-    void run();
+    // Main game loop
+    void run();  // Start the main game loop which handles updates and rendering
 
 private:
-    /**
-     * @brief Initializes game objects such as the player, aliens, and projectiles.
-     */
-    void initGameObjects();
+    // Initialization and setup
+    void initGameObjects();  // Set up all game objects (e.g., players, platforms) at the start of the game
 
-    /**
-     * @brief Updates the game state, including object movement and collision checks.
-     */
-    void update();
+    // Game object update functions
+    void update();  // Update the overall game state (e.g., player movement, collision checks)
+    void updateGameObjects();  // Update positions of all game objects (e.g., players, platforms)
+    void reset();  // Reset the game state to the initial setup
 
-    /**
-     * @brief Updates the position of game objects.
-     */
-    void updateGameObjects();
+    // Collision handling functions
+    void checkCollisions();  // Detect and handle collisions with platforms, boundaries, and death zones
+    void handleCollision(int spikeID);  // Handle collisions between the player and platforms
+    void handleBoundaries();  // Handle collisions with screen boundaries to prevent players from moving off-screen
 
-    /**
-     * @brief Processes input and raises corresponding events.
-     */
-    void handleEvents();
+    // Event handling functions
+    void handleDeath(int objectID);  // Handle a death event
+    void handleSpawn(int objectID);  // Handle a spawn event
+    void handleInput(int objectID, const InputAction& inputAction);  // Handle input events
+    void resolveCollision(int obj1ID, int obj2ID);  // Resolve collision between two objects
 
-    /**
-     * @brief Handles a spawn event for creating objects like projectiles.
-     * @param objectID ID of the object to spawn.
-     */
-    void handleSpawn(int objectID);
+    // Rendering functions
+    void render();  // Render all game objects (players, platforms) to the screen
+    void renderObject(int objectID);  // Render a specific object based on its ID
 
-    /**
-     * @brief Handles a death event for objects like projectiles or aliens.
-     * @param objectID ID of the object triggering the death event.
-     */
-    void handleDeath(int objectID);
+    // Input handling and networking functions
+    void handleEvents();  // Process input events (keyboard, mouse) and handle them accordingly
+    void sendMovementUpdate();  // Send the player's position update to the server
+    void receivePlayerPositions();  // Receive the positions of all players from the server
 
-    /**
-     * @brief Resets the game state, including reinitializing all objects and resetting the timeline.
-     */
-    void resetGame();
+    SpawnEventData sendSpawnEvent(int objectID, int spawnX, int spawnY);  // Send a spawn event to the server
 
-    /**
-     * @brief Sends the player's position to the server.
-     */
-    void sendPlayerUpdate();
+    // SDL-related variables
+    SDL_Renderer* renderer;  // The SDL renderer responsible for drawing game objects to the screen
+    SDL_Event e;  // SDL event object used for handling input events (keyboard, mouse, etc.)
 
-    /**
-     * @brief Receives updates from the server, including other players' positions.
-     */
-    void receiveServerUpdates();
+    // Networking-related variables
+    zmq::socket_t& reqSocket;  // ZeroMQ request socket used to send player position data to the server
+    zmq::socket_t& subSocket;  // ZeroMQ subscriber socket used to receive updates from the server
+    zmq::socket_t& eventReqSocket;  // ZeroMQ request socket used to send event data to the server
 
-    /**
-     * @brief Renders all game objects, including the player, aliens, and projectiles.
-     */
-    void render();
+    // Game object and property IDs
+    int clientId;  // The unique ID assigned to the player's character by the server
+    int playerID;  // The ID of the player's object in the PropertyManager
+    int playerLives;  // The number of lives the player has remaining
+    std::vector<int> lives;  // Vector to store the life indicator objects
+    int bossID;  // The ID of the boss object in the PropertyManager
+    std::vector<int> enemyIDs;  // Vector to store the IDs of all enemies
+    int rightBoundaryID, leftBoundaryID;  // IDs for the right and left screen boundaries
+    int spawnPointID;  // ID for the player's spawn point (where they respawn after falling into the death zone)
 
-    /**
-     * @brief Renders the player character.
-     * @param playerID ID of the player to render.
-     */
-    void renderPlayer(int playerID);
+    // Player positions and rendering
+    std::unordered_map<int, PlayerPosition> allPlayers;  // Map that stores the positions of all players (received from the server)
+    std::unordered_map<int, SDL_Rect> allRects;  // Map to store the rectangles for rendering each player
 
-    /**
-     * @brief Renders an alien object.
-     * @param alienID ID of the alien to render.
-     */
-    void renderAlien(int alienID);
+    // Timeline and time management
+    Timeline gameTimeline;  // Object that manages pausing, unpausing, and time scaling in the game
+    std::chrono::steady_clock::time_point lastTime;  // Time point used for calculating frame delta (used in game updates)
 
-    /**
-     * @brief Renders a projectile object.
-     * @param projectileID ID of the projectile to render.
-     */
-    void renderProjectile(int projectileID);
+    // Variables related to moving platforms and screen boundaries
+    std::mutex platformMutex;  // Mutex used for thread-safe updates to platform positions
 
-    /**
-     * @brief Renders an alien projectile object.
-     * @param alienProjID ID of the alien projectile to render.
-     */
-    void renderAlienProjectile(int alienProjID);
+    // Quit flag
+    bool quit;  // Boolean flag that indicates whether the game should stop running (quit the game loop)
 
-    /**
-     * @brief Renders the current level text on the screen.
-     */
-    void renderLevelText();
-
-    /**
-     * @brief Fires a projectile from the player's position.
-     */
-    void fireProjectile();
-
-    SDL_Renderer* renderer;           // SDL renderer for drawing the game
-    SDL_Event e;                      // SDL event object for input handling
-    zmq::socket_t& reqSocket;         // ZeroMQ request socket for sending player data
-    zmq::socket_t& subSocket;         // ZeroMQ subscriber socket for updates
-    zmq::socket_t& eventReqSocket;    // ZeroMQ event socket for raising events
-
-    int playerID;                     // ID of the player object
-    std::vector<int> alienIDs;        // IDs of alien objects
-    std::vector<int> projectileIDs;   // IDs of projectile objects
-    std::vector<int> alienProjectileIDs; // IDs of alien projectile objects
-    std::unordered_map<int, PlayerPosition> allPlayers; // Map of all players' positions
-
-    bool quit;                        // Whether the game is running
-    bool gameOver;                    // Whether the game is over
-    int clientId;                     // Unique client ID assigned by the server
-    int level = 1;                    // Current game level
-
-    TTF_Font* font;                   // Font for rendering text
-    SDL_Texture* levelTexture;        // Texture for the level text
-    SDL_Texture* speedTexture;        // Texture for the speed text
-    SDL_Rect levelRect;               // Rectangle for the level text position and size
-    SDL_Rect speedRect;               // Rectangle for the speed text position and size
-
-    Timeline gameTimeline;            // Timeline for managing game speed
+    // Thread management
+    ThreadManager threadManager;  // Object that manages multithreading, such as platform movement threads
+    EventManager eventManager;
 };

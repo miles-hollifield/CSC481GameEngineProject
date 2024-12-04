@@ -10,15 +10,22 @@
 #include "CollisionEvent.h"
 
 Game2::Game2(SDL_Renderer* renderer, zmq::socket_t& reqSocket, zmq::socket_t& subSocket, zmq::socket_t& eventReqSocket)
-    : renderer(renderer), reqSocket(reqSocket), subSocket(subSocket), eventReqSocket(eventReqSocket), quit(false), clientId(-1), playerLives(3), score(0), font(nullptr), scoreTexture(nullptr), gameTimeline(nullptr, 1.0f)
+    : renderer(renderer), reqSocket(reqSocket), subSocket(subSocket), eventReqSocket(eventReqSocket), quit(false), clientId(-1), playerLives(3), 
+    score(0), font(nullptr), scoreTexture(nullptr), timeTexture(nullptr),
+    gameTimeline(nullptr, 1.0f)
 {
 	TTF_Init();  // Initialize SDL_ttf for text rendering
-	font = TTF_OpenFont("./fonts/arial.ttf", 24);  // Load a font for rendering text
+	font = TTF_OpenFont("./fonts/PixelPowerline-9xOK.ttf", 24);  // Load a font for rendering text
 
     initGameObjects();
 }
 
-Game2::~Game2() {}
+Game2::~Game2() {
+	TTF_CloseFont(font);  // Close the font
+	SDL_DestroyTexture(scoreTexture);  // Destroy the score texture
+	SDL_DestroyTexture(timeTexture);  // Destroy the time texture
+	TTF_Quit();  // Quit SDL_ttf
+}
 
 // Initialize game objects and register event handlers
 void Game2::initGameObjects() {
@@ -81,7 +88,7 @@ void Game2::initGameObjects() {
     // Create life objects and add properties
     for (int i = 1; i <= playerLives; ++i) {
         int lifeID = propertyManager.createObject();
-        propertyManager.addProperty(lifeID, "Rect", std::make_shared<RectProperty>(100 * i, 150, 50, 50));
+        propertyManager.addProperty(lifeID, "Rect", std::make_shared<RectProperty>(100 * i, 250, 50, 50));
         propertyManager.addProperty(lifeID, "Render", std::make_shared<RenderProperty>(255, 0, 0));
         lives.push_back(lifeID);
     }
@@ -298,15 +305,18 @@ void Game2::resolveCollision(int obj1ID, int obj2ID) {
 
     // Check if the player is colliding with the enemy from the bottom
     if (playerRect->y + playerRect->h / 2 > enemyRect->y + enemyRect->h) {
-        handleDeath(obj1ID); // Handle player death
+        // Raise death event
+        EventManager::getInstance().raiseEvent(std::make_shared<DeathEvent>(obj1ID, &gameTimeline));
     }
     // Check if the player is colliding with the enemy from the left
     else if (playerRect->x + playerRect->w / 2 < enemyRect->x) {
-        handleDeath(obj1ID); // Handle player death
+        // Raise death event
+        EventManager::getInstance().raiseEvent(std::make_shared<DeathEvent>(obj1ID, &gameTimeline));
     }
     // Check if the player is colliding with the enemy from the right
     else if (playerRect->x + playerRect->w / 2 > enemyRect->x + enemyRect->w) {
-        handleDeath(obj1ID); // Handle player death
+        // Raise death event
+        EventManager::getInstance().raiseEvent(std::make_shared<DeathEvent>(obj1ID, &gameTimeline));
     }
 }
 
@@ -538,7 +548,11 @@ void Game2::render() {
     // Render the boss object
     renderObject(bossID);
 
+	// Render the score
     renderScore();
+
+	// Render the time
+	renderTime();
 
     // Render all other players
     for (const auto& player : allPlayers) {
@@ -578,20 +592,66 @@ void Game2::renderObject(int objectID) {
 
 // Render the player's score to the screen
 void Game2::renderScore() {
-    // Create an SDL_Rect for the score display
-    SDL_Rect scoreRect = { 50, 50, 100, 50 };
-    // Set the render draw color for the score display
-    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-    SDL_RenderFillRect(renderer, &scoreRect);
-    // Set the render draw color for the score text
-    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-    // Render the score text to the screen
+    // Check if the score texture already exists and destroy it if it does
+    if (scoreTexture) {
+        SDL_DestroyTexture(scoreTexture);
+        scoreTexture = nullptr;
+    }
+
+    // Create the score text string
     std::string scoreText = "Score: " + std::to_string(score);
-    TTF_Font* font = TTF_OpenFont("assets/arial.ttf", 24);
-    SDL_Surface* surface = TTF_RenderText_Solid(font, scoreText.c_str(), { 0, 0, 0 });
-    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
-    SDL_RenderCopy(renderer, texture, NULL, &scoreRect);
-    SDL_FreeSurface(surface);
-    SDL_DestroyTexture(texture);
-	TTF_CloseFont(font);
+
+    // Set the text color to white
+    SDL_Color textColor = { 255, 255, 255 };
+
+    // Render the text surface using the font and text color
+    SDL_Surface* textSurface = TTF_RenderText_Solid(font, scoreText.c_str(), textColor);
+
+    // Create a texture from the rendered text surface
+    scoreTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+
+    // Free the text surface as it is no longer needed
+    SDL_FreeSurface(textSurface);
+
+    // Set the position of the score on the screen
+    scoreRect.x = 50;
+    scoreRect.y = 50;
+
+    // Query the texture to get its width and height
+    SDL_QueryTexture(scoreTexture, NULL, NULL, &scoreRect.w, &scoreRect.h);
+
+    // Copy the score texture to the renderer at the specified position
+    SDL_RenderCopy(renderer, scoreTexture, NULL, &scoreRect);
+}
+
+void Game2::renderTime() {
+    // Check if the time texture already exists and destroy it if it does
+    if (timeTexture) {
+        SDL_DestroyTexture(timeTexture);
+        timeTexture = nullptr;
+    }
+    // Create the time text string
+    std::string timeText = "Time: " + std::to_string(gameTimeline.getTime() / 1000);
+
+    // Set the text color to white
+    SDL_Color textColor = { 255, 255, 255 };
+
+    // Render the text surface using the font and text color
+    SDL_Surface* textSurface = TTF_RenderText_Solid(font, timeText.c_str(), textColor);
+
+    // Create a texture from the rendered text surface
+    timeTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+
+    // Free the text surface as it is no longer needed
+    SDL_FreeSurface(textSurface);
+
+    // Set the position of the time on the screen
+    timeRect.x = 50;
+    timeRect.y = 100;
+
+    // Query the texture to get its width and height
+    SDL_QueryTexture(timeTexture, NULL, NULL, &timeRect.w, &timeRect.h);
+
+    // Copy the time texture to the renderer at the specified position
+    SDL_RenderCopy(renderer, timeTexture, NULL, &timeRect);
 }

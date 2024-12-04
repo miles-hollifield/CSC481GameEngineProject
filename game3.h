@@ -1,6 +1,7 @@
 #pragma once
 
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
 #include <zmq.hpp>
 #include <unordered_map>
 #include <chrono>
@@ -65,6 +66,7 @@ private:
     // Rendering functions
     void render();  // Render all game objects (players, platforms) to the screen
     void renderObject(int objectID);  // Render a specific object based on its ID
+	void renderTime();  // Render the game time to the screen
 
     // Input handling and networking functions
     void handleEvents();  // Process input events (keyboard, mouse) and handle them accordingly
@@ -91,6 +93,12 @@ private:
     std::vector<int> vertWallIDs;  // Vector to store the IDs of all vertical walls
     int spawnPointID;  // ID for the player's spawn point
     int finishPointID;  // ID for the finish point object
+
+    // Time texture and surface and rect
+    TTF_Font* font;  // Font used for rendering the player's score
+    SDL_Texture* timeTexture;  // Texture used for rendering the game time
+    SDL_Surface* timeSurface;  // Surface used for rendering the game time
+    SDL_Rect timeRect;  // Rectangle for rendering the game time
 
     // Player positions and rendering
     std::unordered_map<int, PlayerPosition> allPlayers;  // Map that stores the positions of all players (received from the server)

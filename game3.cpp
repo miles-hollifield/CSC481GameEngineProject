@@ -10,12 +10,19 @@
 #include "CollisionEvent.h"
 
 Game3::Game3(SDL_Renderer* renderer, zmq::socket_t& reqSocket, zmq::socket_t& subSocket, zmq::socket_t& eventReqSocket)
-    : renderer(renderer), reqSocket(reqSocket), subSocket(subSocket), eventReqSocket(eventReqSocket), quit(false), clientId(-1), playerLives(5), gameTimeline(nullptr, 1.0f)
+    : renderer(renderer), reqSocket(reqSocket), subSocket(subSocket), eventReqSocket(eventReqSocket), quit(false), clientId(-1), playerLives(5), font(nullptr), timeTexture(nullptr), gameTimeline(nullptr, 1.0f)
 {
+    TTF_Init();  // Initialize SDL_ttf for text rendering
+    font = TTF_OpenFont("./fonts/PixelPowerline-9xOK.ttf", 24);  // Load a font for rendering text
+
     initGameObjects();
 }
 
-Game3::~Game3() {}
+Game3::~Game3() {
+    TTF_CloseFont(font);  // Close the font
+    SDL_DestroyTexture(timeTexture);  // Destroy the score texture
+    TTF_Quit();  // Quit SDL_ttf
+}
 
 // Initialize game objects and register event handlers
 void Game3::initGameObjects() {
@@ -304,19 +311,23 @@ void Game3::resolveCollision(int obj1ID, int obj2ID) {
 
     // Check if the player is colliding with the wall from the bottom
     if (playerRect->y + playerRect->h / 2 > wallRect->y + wallRect->h) {
-        handleDeath(obj1ID); // Handle player death
+        // Raise death event
+        EventManager::getInstance().raiseEvent(std::make_shared<DeathEvent>(obj1ID, &gameTimeline));
     }
     // Check if the player is colliding with the wall from the left
     else if (playerRect->x + playerRect->w / 2 < wallRect->x) {
-        handleDeath(obj1ID); // Handle player death
+        // Raise death event
+        EventManager::getInstance().raiseEvent(std::make_shared<DeathEvent>(obj1ID, &gameTimeline));
     }
     // Check if the player is colliding with the wall from the right
     else if (playerRect->x + playerRect->w / 2 > wallRect->x + wallRect->w) {
-        handleDeath(obj1ID); // Handle player death
+        // Raise death event
+        EventManager::getInstance().raiseEvent(std::make_shared<DeathEvent>(obj1ID, &gameTimeline));
     }
     // Check if the player is colliding with the wall from the top
     else if (playerRect->y + playerRect->h / 2 < wallRect->y) {
-        handleDeath(obj1ID); // Handle player death
+        // Raise death event
+        EventManager::getInstance().raiseEvent(std::make_shared<DeathEvent>(obj1ID, &gameTimeline));
     }
 
     // Remove the wall that was collided with if it is not on the border
@@ -497,6 +508,8 @@ void Game3::render() {
 
     renderObject(finishPointID);
 
+    renderTime();
+
     // Render the player object
     renderObject(playerID);
 
@@ -534,4 +547,36 @@ void Game3::renderObject(int objectID) {
 
     // Render the object rectangle
     SDL_RenderFillRect(renderer, &objectRect);
+}
+
+void Game3::renderTime() {
+    // Check if the time texture already exists and destroy it if it does
+    if (timeTexture) {
+        SDL_DestroyTexture(timeTexture);
+        timeTexture = nullptr;
+    }
+    // Create the time text string
+    std::string timeText = "Time: " + std::to_string(gameTimeline.getTime() / 1000);
+
+    // Set the text color to white
+    SDL_Color textColor = { 255, 255, 255 };
+
+    // Render the text surface using the font and text color
+    SDL_Surface* textSurface = TTF_RenderText_Solid(font, timeText.c_str(), textColor);
+
+    // Create a texture from the rendered text surface
+    timeTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+
+    // Free the text surface as it is no longer needed
+    SDL_FreeSurface(textSurface);
+
+    // Set the position of the time on the screen
+    timeRect.x = 1800;
+    timeRect.y = 1020;
+
+    // Query the texture to get its width and height
+    SDL_QueryTexture(timeTexture, NULL, NULL, &timeRect.w, &timeRect.h);
+
+    // Copy the time texture to the renderer at the specified position
+    SDL_RenderCopy(renderer, timeTexture, NULL, &timeRect);
 }

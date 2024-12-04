@@ -65,6 +65,7 @@ private:
     void render();  // Render all game objects (players, platforms) to the screen
     void renderObject(int objectID);  // Render a specific object based on its ID
 	void renderScore();  // Render the player's score to the screen
+	void renderTime();  // Render the game time to the screen
 
     // Input handling and networking functions
     void handleEvents();  // Process input events (keyboard, mouse) and handle them accordingly
@@ -97,10 +98,16 @@ private:
     std::unordered_map<int, PlayerPosition> allPlayers;  // Map that stores the positions of all players (received from the server)
     std::unordered_map<int, SDL_Rect> allRects;  // Map to store the rectangles for rendering each player
 
-	// Score font, texture, and surface
+	// Score font, texture, and surface and rect
 	TTF_Font* font;  // Font used for rendering the player's score
 	SDL_Texture* scoreTexture;  // Texture used for rendering the player's score
 	SDL_Surface* scoreSurface;  // Surface used for rendering the player's score
+	SDL_Rect scoreRect;  // Rectangle for rendering the player's score
+
+    // Time texture and surface and rect
+	SDL_Texture* timeTexture;  // Texture used for rendering the game time
+	SDL_Surface* timeSurface;  // Surface used for rendering the game time
+	SDL_Rect timeRect;  // Rectangle for rendering the game time
 
     // Timeline and time management
     Timeline gameTimeline;  // Object that manages pausing, unpausing, and time scaling in the game

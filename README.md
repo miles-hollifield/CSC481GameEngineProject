@@ -41,14 +41,14 @@ This folder contains the **CSC481 Game Engine** and the associated game files. T
    - The project is pre-configured to run the platformer game.
    - Simply build and run the game as described in Step 6.
 
-#### 5.2 **Space Invaders Game**:
+#### 5.2 **Boss Dodge Game**:
    - Modify the main.h file:
     - Change #include "game.h" to #include "game2.h".
    - Modify the main.cpp file:
     - Change the Game instance to Game2 (e.g., Game2 game(renderer, reqSocket, subSocket, eventReqSocket);).
    - Rebuild the project and launch the game.
 
-#### 5.3 **Snake Game**:
+#### 5.3 **Maze Break Game**:
    - Modify the main.h file:
     - Change #include "game.h" to #include "game3.h".
    - Modify the main.cpp file:
@@ -71,16 +71,15 @@ This folder contains the **CSC481 Game Engine** and the associated game files. T
    - Up Arrow Key: Jump.
    - Collision Handling: Interacts with static and moving platforms.
 
-### Space Invaders Game Controls:
-   - Left/Right Arrow Keys: Move the spaceship left or right.
-   - Spacebar: Shoot bullets to destroy incoming aliens.
-   - Alien Movement: Aliens move progressively faster as the game continues.
+### Boss Dodge Game Controls:
+   - Left/Right Arrow Keys: Move the player left or right.
+   - Boss Behavior: Continuously fires projectiles.
 
-### Snake Game Controls:
-   - Arrow Keys: Move the snake in the desired direction.
-   - Collision Handling: Avoid hitting the walls or the snake's body.
-   - Food Collection: Eat the food to grow the snake and increase the score.
-   - Game Speed: The snake moves faster as it eats food.
+### Maze Break Game Controls:
+   - Arrow Keys: Move the player in the desired direction.
+   - Collision Handling: Avoid hitting the walls.
+   - Wall breaking: On collision with a wall, the wall is broken opening a new path.
+   - Finish: Reach the green finish square without lossing all your lives.
 
 ## Issues and Troubleshooting
 

@@ -10,8 +10,11 @@
 #include "CollisionEvent.h"
 
 Game2::Game2(SDL_Renderer* renderer, zmq::socket_t& reqSocket, zmq::socket_t& subSocket, zmq::socket_t& eventReqSocket)
-    : renderer(renderer), reqSocket(reqSocket), subSocket(subSocket), eventReqSocket(eventReqSocket), quit(false), clientId(-1), playerLives(3), gameTimeline(nullptr, 1.0f)
+    : renderer(renderer), reqSocket(reqSocket), subSocket(subSocket), eventReqSocket(eventReqSocket), quit(false), clientId(-1), playerLives(3), score(0), font(nullptr), scoreTexture(nullptr), gameTimeline(nullptr, 1.0f)
 {
+	TTF_Init();  // Initialize SDL_ttf for text rendering
+	font = TTF_OpenFont("./fonts/arial.ttf", 24);  // Load a font for rendering text
+
     initGameObjects();
 }
 
@@ -78,7 +81,7 @@ void Game2::initGameObjects() {
     // Create life objects and add properties
     for (int i = 1; i <= playerLives; ++i) {
         int lifeID = propertyManager.createObject();
-        propertyManager.addProperty(lifeID, "Rect", std::make_shared<RectProperty>(100 * i, 50, 50, 50));
+        propertyManager.addProperty(lifeID, "Rect", std::make_shared<RectProperty>(100 * i, 150, 50, 50));
         propertyManager.addProperty(lifeID, "Render", std::make_shared<RenderProperty>(255, 0, 0));
         lives.push_back(lifeID);
     }
@@ -507,6 +510,7 @@ void Game2::updateGameObjects() {
             enemyRect->x = SCREEN_WIDTH / 2 - 250 + std::rand() % 401;
             enemyVel->vy = 0;
             enemyVel->vx = 0;
+            score++;
         }
     }
 }
@@ -533,6 +537,8 @@ void Game2::render() {
 
     // Render the boss object
     renderObject(bossID);
+
+    renderScore();
 
     // Render all other players
     for (const auto& player : allPlayers) {
@@ -568,4 +574,24 @@ void Game2::renderObject(int objectID) {
 
     // Render the enemy rectangle
     SDL_RenderFillRect(renderer, &objectRect);
+}
+
+// Render the player's score to the screen
+void Game2::renderScore() {
+    // Create an SDL_Rect for the score display
+    SDL_Rect scoreRect = { 50, 50, 100, 50 };
+    // Set the render draw color for the score display
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+    SDL_RenderFillRect(renderer, &scoreRect);
+    // Set the render draw color for the score text
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    // Render the score text to the screen
+    std::string scoreText = "Score: " + std::to_string(score);
+    TTF_Font* font = TTF_OpenFont("assets/arial.ttf", 24);
+    SDL_Surface* surface = TTF_RenderText_Solid(font, scoreText.c_str(), { 0, 0, 0 });
+    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+    SDL_RenderCopy(renderer, texture, NULL, &scoreRect);
+    SDL_FreeSurface(surface);
+    SDL_DestroyTexture(texture);
+	TTF_CloseFont(font);
 }

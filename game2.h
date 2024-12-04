@@ -1,6 +1,7 @@
 #pragma once
 
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
 #include <zmq.hpp>
 #include <unordered_map>
 #include <chrono>
@@ -63,6 +64,7 @@ private:
     // Rendering functions
     void render();  // Render all game objects (players, platforms) to the screen
     void renderObject(int objectID);  // Render a specific object based on its ID
+	void renderScore();  // Render the player's score to the screen
 
     // Input handling and networking functions
     void handleEvents();  // Process input events (keyboard, mouse) and handle them accordingly
@@ -87,12 +89,18 @@ private:
     std::vector<int> lives;  // Vector to store the life indicator objects
     int bossID;  // The ID of the boss object in the PropertyManager
     std::vector<int> enemyIDs;  // Vector to store the IDs of all enemies
+	int score;  // The player's score in the game
     int rightBoundaryID, leftBoundaryID;  // IDs for the right and left screen boundaries
     int spawnPointID;  // ID for the player's spawn point (where they respawn after falling into the death zone)
 
     // Player positions and rendering
     std::unordered_map<int, PlayerPosition> allPlayers;  // Map that stores the positions of all players (received from the server)
     std::unordered_map<int, SDL_Rect> allRects;  // Map to store the rectangles for rendering each player
+
+	// Score font, texture, and surface
+	TTF_Font* font;  // Font used for rendering the player's score
+	SDL_Texture* scoreTexture;  // Texture used for rendering the player's score
+	SDL_Surface* scoreSurface;  // Surface used for rendering the player's score
 
     // Timeline and time management
     Timeline gameTimeline;  // Object that manages pausing, unpausing, and time scaling in the game
